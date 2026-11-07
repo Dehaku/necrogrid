@@ -1,6 +1,7 @@
 // Typed event bus. Systems talk through this instead of importing each other's internals.
 // GAME_DESIGN.md section 15.
 
+import type { BuildingKind } from '../data/buildings';
 import type { CorpseSize, EnemyId } from '../data/enemies';
 import type { ResourceAmounts, ResourceId } from '../data/resources';
 import type { TileId } from '../data/terrain';
@@ -58,6 +59,13 @@ export interface GameEvents {
   'harvest:started': { id: number };
   'harvest:interrupted': { id: number; reason: 'damage' | 'moved' | 'faded' };
   'mend:cast': Record<string, never>;
+  'building:placed': { id: number; kind: BuildingKind };
+  /** The player removed a building; `refund` is what was actually added. */
+  'building:removed': { id: number; kind: BuildingKind; x: number; y: number; refund: ResourceAmounts };
+  'building:damaged': { id: number; hp: number };
+  /** Demons destroyed a building; `drop` is what was actually added. */
+  'building:destroyed': { id: number; kind: BuildingKind; x: number; y: number; drop: ResourceAmounts };
+  'building:repaired': { amount: number };
   /** Chain was cast. `points` runs from the necromancer through each enemy hit, in order. */
   'chain:cast': { points: { x: number; y: number }[] };
   'run:lost': { cause: 'player' | 'phylactery'; day: number; kills: number; corpsesHarvested: number; score: number };

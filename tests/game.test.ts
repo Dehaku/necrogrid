@@ -4,8 +4,8 @@ import { Game, type PlayerCommand } from '../src/game';
 
 const idle: PlayerCommand = { move: { up: false, down: false, left: false, right: false }, aim: { x: 0, y: 0 }, bolt: false, chain: false };
 
-function quietGame(seed = 1): Game {
-  const game = new Game(seed, new EventBus<GameEvents>());
+function quietGame(seed = 1, startingBase = true): Game {
+  const game = new Game(seed, new EventBus<GameEvents>(), { startingBase });
   game.director.paused = true;
   // Let both flow fields build.
   game.tick(1 / 60, idle);
@@ -29,7 +29,8 @@ describe('Game (M3)', () => {
   });
 
   it('sends an enemy closer to the Phylactery after it, and it damages the Phylactery', () => {
-    const game = quietGame(2);
+    // No starting walls, so the Imp has a clear run at the Phylactery.
+    const game = quietGame(2, false);
     // Move the player far away first.
     game.player.x = game.player.prevX = 30.5;
     game.player.y = game.player.prevY = 30.5;
@@ -56,7 +57,7 @@ describe('Game (M3)', () => {
   });
 
   it('keeps the Phylactery out of spawning: its tiles and 3 tiles around are no-spawn', () => {
-    const game = quietGame();
+    const game = quietGame(1, false);
     expect(game.noSpawn.isBlocked(0, 0)).toBe(true);
     expect(game.noSpawn.isBlocked(4, 4)).toBe(true);
     expect(game.noSpawn.isBlocked(5, 0)).toBe(false);

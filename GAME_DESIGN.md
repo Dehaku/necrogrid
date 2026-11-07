@@ -325,7 +325,7 @@ Drawn in screen space by `src/ui/hud.ts`, after the world. Each element lists th
 | **Resources** | Top-left | Compact counters (Bone, Flesh, Ichor, Soul Shard). See resource rules below | M6 |
 | **Pickup popups** | In the world, over the corpse or Collector | "+3 Bone" style text, rising and fading over 1 s. One line per resource gained | M6 |
 | **Warnings** | Top-center, under the Phylactery panel | Banner text for 3 s. See warning list below | M9 |
-| **Build hotbar** | Bottom-center, build mode only | The six buildings with key, shape, and cost. Unaffordable ones are greyed out. The ghost shows a cost tooltip | M7 |
+| **Build hotbar** | Bottom-center, build mode only | The six buildings plus Marsh and Fill (keys 1–8) with key, swatch, and cost. Unaffordable ones are greyed out. The ghost shows a cost tooltip, and the reason when it cannot be placed | M7 |
 | **Prompts** | Next to the object | "E Harvest" by the corpse E would harvest. "R Repair (2 Bone)" by the building R would repair | M6 (E), M7 (R) |
 | **Spell bar** | Centered 1.5 tiles (48 px) below the necromancer's on-screen position | Three icons in a row: Bolt, Chain, and the Mend badge. See spell bar rules below | M4 (Bolt), M5 (Chain), M6 (Mend) |
 | **Health bars** | Above damaged enemies and buildings | Shown only while HP is below max. See health bar rules below | M4 (enemies), M7 (buildings) |
@@ -483,10 +483,15 @@ Totems never target a Wraith that is still fading in.
 - After each harvest it rolls a new cooldown, uniformly between 3 and 5 s, from the seeded RNG. A newly placed Collector also starts with a random cooldown. This keeps groups of Collectors from firing in sync.
 - While no corpse is in range, it checks again each tick.
 
+**Build mode controls:** B toggles build mode (it does not pause). Keys 1–8 pick from the hotbar. Left click places at the ghost; holding it and dragging places on every new tile the cursor crosses (painting walls or marsh). Right click removes the building under the cursor. While build mode is on, the mouse builds instead of casting Bolt and Chain; Q, E, and R still work. The ghost is red with the reason (including "Not enough resources") when the choice cannot go there.
+
+**Grave Lantern light:** each Lantern lights a 3-tile radius around itself at night, in addition to the player's own light.
+
 **Building rules:**
-- Buildings have HP. When HP reaches 0, the building is destroyed and drops 50% of its cost as resources.
+- Buildings have HP. When HP reaches 0, the building is destroyed and drops 50% of its cost as resources (each resource rounded down), straight into the player's counters.
 - **Repair:** hold R within 2 tiles of a damaged building, during any phase. Repairing from damaged to full costs, for each resource in the build cost, `ceil(cost × missingHP / maxHP)`. Repair happens at 50 HP/s, and resources are spent as it goes. A Bone Wall at half HP costs 2 Bone to repair fully.
-- Removing a building refunds 50% of its cost.
+- Repair pays one resource unit at a time, as the repair needs it. Anything paid but not yet used stays on the building as credit, so stopping and restarting never costs more than the formula. Repair stops where the player runs out of resources. The "R Repair (2 Bone)" prompt shows the cost to finish.
+- Removing a building refunds 50% of its cost (each resource rounded down).
 - Starting buildings (section 10.5) are free, so they give no refund and no drop.
 
 ### 10.3 Necromancer Gear (unlocks)
@@ -774,10 +779,12 @@ necrogrid/
       chain.ts
       damage.ts
       targeting.ts           # target selectors and hysteresis
+      chain.ts               # chain targets and falloff
+      totem.ts               # Totem targeting and bolts
     economy/
       resources.ts           # resource counters and caps
       lootRoll.ts            # rolls loot from src/data/loot.ts
-      collector.ts           # (M7)
+      repair.ts              # repair cost and pay-as-you-go repair
     crafting/
       crafting.ts            # crafting logic, reads src/data/recipes.ts
       unlocks.ts             # unlocked gear and equipped slots

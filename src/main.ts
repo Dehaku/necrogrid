@@ -15,7 +15,12 @@ import { Camera } from './render/camera';
 import { GameCanvas } from './render/canvas';
 import { Effects } from './render/effects';
 import { Lighting } from './render/lighting';
-import { drawBolt, drawCorpse, drawEnemy, drawPhylactery, drawPlayer, drawTerrain } from './render/sprites';
+import { drawBolt, drawBuilding, drawCorpse, drawEnemy, drawPhylactery, drawPlayer, drawTerrain } from './render/sprites';
+import { LANTERN, TOTEM, type BuildChoice } from './data/buildings';
+import { footprintAtCursor } from './entities/building';
+import { repairCostToFull } from './economy/repair';
+import { BuildMode, choiceInfo, costText, drawGhost, drawHotbar } from './ui/buildMenu';
+import { drawEdgeArrow, drawPhylacteryPanel, drawRepairPrompt, edgeArrowPosition } from './ui/hud';
 import { ENEMIES } from './data/enemies';
 import type { ResourceId } from './data/resources';
 import { corpseOpacity, corpsesToDraw } from './entities/corpse';
@@ -65,6 +70,11 @@ applySettings(settingsPanel.settings);
 const titleScreen = new TitleScreen(settingsPanel);
 const endScreen = new EndScreen();
 const equipmentScreen = new EquipmentScreen();
+const buildMode = new BuildMode();
+/** Run time of the last hit on the Phylactery, for the arrow's red flash. */
+let lastPhylacteryHit = -Infinity;
+/** The tile last painted while holding LMB in build mode, so each tile is tried once per drag. */
+let lastPaintKey: string | undefined;
 
 /** The current run. Undefined on the title screen when no run is active. */
 let game: Game | undefined;
@@ -83,6 +93,10 @@ const keys = {
   equipment: new Set(keysForAction(CONTROLS, 'equipment')),
   harvest: keysForAction(CONTROLS, 'harvest'),
   mend: keysForAction(CONTROLS, 'mend'),
+  repair: keysForAction(CONTROLS, 'repair'),
+  build: new Set(keysForAction(CONTROLS, 'build')),
+  /** Digit1..Digit8, in hotbar order. */
+  buildSlots: keysForAction(CONTROLS, 'buildSlot'),
 };
 const boltButtons = buttonsForAction(CONTROLS, 'bolt');
 const chainButtons = buttonsForAction(CONTROLS, 'chain');
@@ -123,6 +137,9 @@ function startRun(seed: number = newRunSeed(location.search)): void {
   effects.attach(events);
   resourceHud.attach(events);
   equipmentScreen.close();
+  buildMode.active = false;
+  lastPhylacteryHit = -Infinity;
+  events.on('phylactery:damaged', () => (lastPhylacteryHit = game?.cycle.elapsed ?? 0));
   events.on('run:lost', (outcome) => {
     endScreen.open(outcome);
     pause.pause('menu');
@@ -215,8 +232,52 @@ input.interceptPress = (press) => {
     input.clearAll();
     return true;
   }
+  // Build mode (section 8.4 / 10.2): B toggles, 1–8 pick, RMB removes the building under the cursor.
+  if (press.key !== undefined && keys.build.has(press.key) && runActive()) {
+    buildMode.toggle();
+    lastPaintKey = undefined;
+    return true;
+  }
+  if (buildMode.active && press.key !== undefined && keys.buildSlots.includes(press.key)) {
+    buildMode.select(keys.buildSlots.indexOf(press.key));
+    return true;
+  }
+  if (buildMode.active && chainButtons.includes(press.button ?? -1)) {
+    const at = cursorWorld();
+    const building = game.buildingAtTile(Math.floor(at.x), Math.floor(at.y));
+    if (building) game.removeBuilding(building.id);
+    return true;
+  }
   return false;
 };
+
+/** The cursor in world tiles (camera centered on the player, as during a tick). */
+function cursorWorld(): { x: number; y: number } {
+  if (game) camera.centerOn(game.player.x, game.player.y);
+  return camera.screenToWorld(input.mouse.x, input.mouse.y);
+}
+
+/** Where the build ghost sits for the current choice. */
+function ghostFootprint(choice: BuildChoice) {
+  const info = choiceInfo(choice);
+  return footprintAtCursor(cursorWorld(), info.w, info.h);
+}
+
+/** Why the current build choice cannot go at the ghost, or undefined. */
+function ghostProblem(run: Game, choice: BuildChoice, fp: { x: number; y: number }): string | undefined {
+  return choice === 'marsh' || choice === 'fill' ? run.editProblem(choice, fp.x, fp.y) : run.buildProblem(choice, fp.x, fp.y);
+}
+
+/** Holding LMB in build mode places at each new tile the cursor crosses (paint walls, marsh...). */
+function paintBuild(run: Game): void {
+  const choice = buildMode.choice;
+  const fp = ghostFootprint(choice);
+  const k = `${choice}:${fp.x},${fp.y}`;
+  if (k === lastPaintKey) return;
+  lastPaintKey = k;
+  if (choice === 'marsh' || choice === 'fill') run.editTerrain(choice, fp.x, fp.y);
+  else run.placeBuilding(choice, fp.x, fp.y);
+}
 
 // Auto-pause (section 8.3): pause when the tab is hidden or the window loses focus.
 // It does nothing while a screen is already open (the game is paused anyway).
@@ -239,6 +300,11 @@ function tick(dt: number): void {
     game.godMode = debugPanel.settings.godMode;
   }
 
+  // In build mode the mouse builds instead of casting.
+  const leftHeld = boltButtons.some((b) => input.isButtonDown(b));
+  if (buildMode.active && leftHeld) paintBuild(game);
+  else lastPaintKey = undefined;
+
   camera.centerOn(game.player.x, game.player.y);
   game.tick(dt, {
     move: {
@@ -248,10 +314,11 @@ function tick(dt: number): void {
       right: input.anyKeyDown(keys.right),
     },
     aim: camera.screenToWorld(input.mouse.x, input.mouse.y),
-    bolt: boltButtons.some((b) => input.isButtonDown(b)),
-    chain: chainButtons.some((b) => input.wasButtonPressed(b)),
+    bolt: !buildMode.active && leftHeld,
+    chain: !buildMode.active && chainButtons.some((b) => input.wasButtonPressed(b)),
     harvest: input.anyKeyDown(keys.harvest) || keys.harvest.some((k) => input.wasKeyPressed(k)),
     mend: keys.mend.some((k) => input.wasKeyPressed(k)),
+    repair: input.anyKeyDown(keys.repair),
   });
   effects.advance(dt);
   resourceHud.advance(dt);
@@ -279,16 +346,24 @@ function drawRun(run: Game): void {
   for (const c of corpsesToDraw(run.corpses, settingsPanel.settings.corpseRenderCount)) {
     drawCorpse(ctx, camera, ENEMIES[c.enemyType], c.elite, c.x, c.y, c.heading, corpseOpacity(c, time));
   }
+  for (const b of run.buildingsById.values()) drawBuilding(ctx, camera, b.kind, b.footprint, b.def.color, b.def.label);
   for (const e of run.enemies) {
     drawEnemy(ctx, camera, e.def, e.elite, lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha), e.heading, time);
   }
   effects.drawWorld(ctx, camera);
-  for (const b of run.projectiles) drawBolt(ctx, camera, lerp(b.prevX, b.x, alpha), lerp(b.prevY, b.y, alpha), b.prevX, b.prevY);
+  for (const b of run.projectiles) {
+    drawBolt(ctx, camera, lerp(b.prevX, b.x, alpha), lerp(b.prevY, b.y, alpha), b.prevX, b.prevY, b.source === 'totem' ? TOTEM.boltColor : undefined);
+  }
   const blink = player.invulnerable > 0 && Math.floor(player.invulnerable / 0.08) % 2 === 0;
   drawPlayer(ctx, camera, x, y, player.facing, blink);
 
   const me = camera.worldToScreen(x, y);
-  lighting.draw(ctx, run.cycle.nightBlend, [{ x: me.x, y: me.y, radius: LIGHTING.playerLightRadius * TILE_SIZE }]);
+  const lights = [{ x: me.x, y: me.y, radius: LIGHTING.playerLightRadius * TILE_SIZE }];
+  for (const l of run.lanterns()) {
+    const p = camera.worldToScreen(l.x, l.y);
+    lights.push({ x: p.x, y: p.y, radius: LANTERN.lightRadius * TILE_SIZE });
+  }
+  lighting.draw(ctx, run.cycle.nightBlend, lights);
 
   const settings = debugPanel?.settings;
   if (settings && settings.flowOverlay !== 'off') drawFlowField(ctx, camera, run.fields.field(settings.flowOverlay));
@@ -297,6 +372,22 @@ function drawRun(run: Game): void {
   for (const e of run.enemies) {
     const p = camera.worldToScreen(lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha));
     drawHealthBar(ctx, p.x, p.y - e.def.drawSize * TILE_SIZE, 1, e.hp, e.maxHp);
+  }
+  for (const b of run.buildingsById.values()) {
+    const top = camera.worldToScreen(b.footprint.x + b.footprint.w / 2, b.footprint.y);
+    drawHealthBar(ctx, top.x, top.y, b.footprint.w, b.hp, b.maxHp);
+  }
+  const repair = run.repairCandidate();
+  if (repair && !run.harvest) {
+    const top = camera.worldToScreen(repair.footprint.x + repair.footprint.w / 2, repair.footprint.y);
+    const keyLabel = CONTROLS.find((c) => c.action === 'repair')?.label ?? 'R';
+    drawRepairPrompt(ctx, top.x, top.y, keyLabel, costText(repairCostToFull(repair.target, repair.cost)));
+  }
+  if (buildMode.active) {
+    const choice = buildMode.choice;
+    const fp = ghostFootprint(choice);
+    camera.centerOn(x, y);
+    drawGhost(ctx, camera.worldToScreen(fp.x, fp.y), fp, choiceInfo(choice), ghostProblem(run, choice, fp));
   }
   const target = run.harvest?.corpse ?? run.harvestCandidate();
   if (target) {
@@ -308,8 +399,12 @@ function drawRun(run: Game): void {
   drawCrescents(ctx, me.x, me.y, player);
   drawSpellBar(ctx, me.x, me.y, spellIcons(player, run.resources.get('flesh')));
   drawDayRing(ctx, run.cycle.state);
+  drawPhylacteryPanel(ctx, run.phylactery.hp, run.phylactery.maxHp);
+  const arrow = edgeArrowPosition(camera.worldToScreen(run.phylactery.center.x, run.phylactery.center.y));
+  if (arrow) drawEdgeArrow(ctx, arrow, time - lastPhylacteryHit < 2, performance.now());
+  if (buildMode.active) drawHotbar(ctx, buildMode, (cost) => run.resources.canAfford(cost));
   const amount = (id: ResourceId) => run.resources.get(id);
-  resourceHud.draw(ctx, amount, equipmentScreen.isOpen);
+  resourceHud.draw(ctx, amount, equipmentScreen.isOpen || run.nearAltar());
   if (settings?.spawnOverlay) drawSpawnInset(ctx, run);
   if (equipmentScreen.isOpen) {
     equipmentScreen.draw(ctx, amount);

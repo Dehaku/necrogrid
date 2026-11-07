@@ -1,6 +1,6 @@
 // Placeholder shapes (GAME_DESIGN.md section 15, placeholder art rule).
 
-import { PHYLACTERY } from '../data/buildings';
+import { PHYLACTERY, type BuildingKind } from '../data/buildings';
 import { ELITE, type EnemyDef } from '../data/enemies';
 import { BOLT } from '../data/spells';
 import { CORPSES } from '../data/ui';
@@ -214,11 +214,53 @@ export function drawCorpse(
   ctx.restore();
 }
 
-/** A bolt: a glowing violet dot with a short trail back to its previous position. */
-export function drawBolt(ctx: CanvasRenderingContext2D, camera: Camera, x: number, y: number, prevX: number, prevY: number): void {
+/**
+ * A player building: a colored square with a short label (placeholder art). The Bone Door is a
+ * wall square with a darker center stripe; the Lantern glows a little.
+ */
+export function drawBuilding(ctx: CanvasRenderingContext2D, camera: Camera, kind: BuildingKind, fp: Footprint, color: string, label: string): void {
+  const p = camera.worldToScreen(fp.x, fp.y);
+  const w = fp.w * TILE_SIZE;
+  const h = fp.h * TILE_SIZE;
+  if (p.x > VIEW_WIDTH || p.y > VIEW_HEIGHT || p.x + w < 0 || p.y + h < 0) return;
+  ctx.fillStyle = color;
+  ctx.fillRect(p.x + 1, p.y + 1, w - 2, h - 2);
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(p.x + 2, p.y + 2, w - 4, h - 4);
+  if (kind === 'door') {
+    ctx.fillStyle = 'rgba(40, 30, 24, 0.85)';
+    ctx.fillRect(p.x + w / 2 - 4, p.y + 4, 8, h - 8);
+  }
+  if (kind === 'lantern') {
+    ctx.beginPath();
+    ctx.arc(p.x + w / 2, p.y + h / 2, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff3c4';
+    ctx.fill();
+    return;
+  }
+  if (label) {
+    ctx.fillStyle = 'rgba(20, 14, 20, 0.85)';
+    ctx.font = `700 ${fp.w > 1 ? 12 : 13}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, p.x + w / 2, p.y + h / 2 + 1);
+  }
+}
+
+/** A bolt: a glowing dot with a short trail back to its previous position. Totem bolts are pale green. */
+export function drawBolt(
+  ctx: CanvasRenderingContext2D,
+  camera: Camera,
+  x: number,
+  y: number,
+  prevX: number,
+  prevY: number,
+  color: string = BOLT.color,
+): void {
   const p = camera.worldToScreen(x, y);
   const tail = camera.worldToScreen(prevX, prevY);
-  ctx.strokeStyle = BOLT.glowColor;
+  ctx.strokeStyle = color === BOLT.color ? BOLT.glowColor : 'rgba(150, 240, 180, 0.35)';
   ctx.lineWidth = 6;
   ctx.lineCap = 'round';
   ctx.beginPath();
@@ -227,7 +269,7 @@ export function drawBolt(ctx: CanvasRenderingContext2D, camera: Camera, x: numbe
   ctx.stroke();
   ctx.beginPath();
   ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-  ctx.fillStyle = BOLT.color;
+  ctx.fillStyle = color;
   ctx.fill();
 }
 

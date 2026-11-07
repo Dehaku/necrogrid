@@ -3,8 +3,9 @@
 
 import { BOLT, CHAIN, MEND } from '../data/spells';
 import { mendProblem } from '../entities/player';
+import { healthBarColor } from './healthBars';
 import { DAY_CYCLE, DAY_RING } from '../data/time';
-import { TILE_SIZE, VIEW_WIDTH } from '../data/tuning';
+import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
 import { CRESCENT, SPELL_BAR } from '../data/ui';
 import type { Player } from '../entities/player';
 import type { CycleState } from '../time/dayCycle';
@@ -124,6 +125,81 @@ export function spellIcons(player: Player, flesh: number): SpellIcon[] {
       },
     },
   ];
+}
+
+/** Phylactery panel, top-center: HP bar colored like health bars, with the numbers. */
+export function drawPhylacteryPanel(ctx: CanvasRenderingContext2D, hp: number, maxHp: number): void {
+  const width = 260;
+  const left = (VIEW_WIDTH - width) / 2;
+  const top = 14;
+  ctx.fillStyle = 'rgba(12, 10, 16, 0.8)';
+  ctx.fillRect(left - 6, top - 4, width + 12, 34);
+  ctx.fillStyle = '#c9b8ec';
+  ctx.font = '600 11px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('PHYLACTERY', left, top);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#f2ead8';
+  ctx.fillText(`${Math.ceil(hp)} / ${maxHp}`, left + width, top);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.fillRect(left, top + 15, width, 9);
+  ctx.fillStyle = healthBarColor(hp / maxHp);
+  ctx.fillRect(left, top + 15, width * Math.max(0, hp / maxHp), 9);
+}
+
+/**
+ * Where the off-screen Phylactery arrow goes: on a rectangle inset from the screen edge, along
+ * the line from the screen center toward the target. Undefined if the target is on screen.
+ */
+export function edgeArrowPosition(target: { x: number; y: number }, inset = 30): { x: number; y: number; angle: number } | undefined {
+  const cx = VIEW_WIDTH / 2;
+  const cy = VIEW_HEIGHT / 2;
+  if (target.x >= 0 && target.x <= VIEW_WIDTH && target.y >= 0 && target.y <= VIEW_HEIGHT) return undefined;
+  const dx = target.x - cx;
+  const dy = target.y - cy;
+  const scale = Math.min((cx - inset) / Math.abs(dx || 1e-9), (cy - inset) / Math.abs(dy || 1e-9));
+  return { x: cx + dx * scale, y: cy + dy * scale, angle: Math.atan2(dy, dx) };
+}
+
+/** The arrow itself; `alarm` (2 s after the Phylactery takes damage) makes it flash red. */
+export function drawEdgeArrow(ctx: CanvasRenderingContext2D, at: { x: number; y: number; angle: number }, alarm: boolean, now: number): void {
+  const red = alarm && Math.floor(now / 150) % 2 === 0;
+  ctx.save();
+  ctx.translate(at.x, at.y);
+  ctx.rotate(at.angle);
+  ctx.beginPath();
+  ctx.moveTo(14, 0);
+  ctx.lineTo(-10, -11);
+  ctx.lineTo(-5, 0);
+  ctx.lineTo(-10, 11);
+  ctx.closePath();
+  ctx.fillStyle = red ? '#ff4040' : '#b9a3ea';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** "R Repair (2 Bone)" over the building R would repair. `x`, `y` = top-center of its footprint on screen. */
+export function drawRepairPrompt(ctx: CanvasRenderingContext2D, x: number, y: number, keyLabel: string, costLabel: string): void {
+  const text = costLabel ? `Repair (${costLabel})` : 'Repair';
+  ctx.font = '700 11px system-ui, sans-serif';
+  const width = 16 + 6 + ctx.measureText(text).width + 8;
+  const left = x - width / 2;
+  const top = y - 30;
+  ctx.fillStyle = 'rgba(12, 10, 16, 0.85)';
+  ctx.fillRect(left, top, width, 18);
+  ctx.strokeStyle = 'rgba(232, 224, 204, 0.8)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(left + 3.5, top + 2.5, 13, 13);
+  ctx.fillStyle = '#f2ead8';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(keyLabel, left + 10, top + 9.5);
+  ctx.textAlign = 'left';
+  ctx.fillText(text, left + 22, top + 9.5);
 }
 
 /**

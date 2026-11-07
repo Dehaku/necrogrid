@@ -1,7 +1,11 @@
 // The simulation for one run: world, time, player, Phylactery, enemies, and spawning.
 // main.ts owns the browser side (canvas, input, loop) and calls tick() at 60 Hz.
 
-import { PHYLACTERY, TERRAIN_EDITS } from './data/buildings';
+import { ALTAR, BUILD_RULES, BUILDINGS, COLLECTOR, PHYLACTERY, TERRAIN_EDITS, TOTEM, type BuildingKind } from './data/buildings';
+import { nearestWithin, totemBolt } from './combat/totem';
+import { createBuilding, footprintCenter, placementProblem, shareOf, type Building, type PlacementWorld } from './entities/building';
+import { planStartingBase } from './entities/startingBase';
+import { stepRepair, type Repairable } from './economy/repair';
 import { type EnemyId } from './data/enemies';
 import { SPAWN } from './data/spawn';
 import { CHUNK_GENERATION_RADIUS, CHUNK_SIZE, TILE } from './data/terrain';
@@ -43,6 +47,7 @@ import { terrainEditProblem, terrainEditResult, type TerrainEdit } from './world
 /** Separate RNG streams, so one system's rolls never shift another's. */
 const SPAWN_STREAM = 0x5370;
 const LOOT_STREAM = 0x1007;
+const BUILD_STREAM = 0xb11d;
 
 export interface PlayerCommand {
   move: MoveIntent;
@@ -56,6 +61,8 @@ export interface PlayerCommand {
   harvest?: boolean;
   /** Mend key pressed this tick. */
   mend?: boolean;
+  /** Repair key held. */
+  repair?: boolean;
 }
 
 /** A harvest in progress. */
@@ -84,7 +91,10 @@ export class Game {
   readonly cycle: DayCycle;
   readonly player: Player;
   readonly phylactery: Phylactery;
+  /** Which tiles buildings (and the Phylactery) occupy. */
   readonly buildings = new BuildingGrid();
+  /** Player buildings by id (the Phylactery is separate). */
+  readonly buildingsById = new Map<number, Building>();
   readonly noSpawn = new NoSpawnGrid();
   readonly fields: FlowFields;
   readonly director: SpawnDirector;
@@ -96,7 +106,7 @@ export class Game {
   readonly corpses: Corpse[] = [];
   harvest: HarvestState | undefined;
   kills = 0;
-  /** Buildings destroyed by demons, for the score. Player buildings arrive in M7. */
+  /** Buildings destroyed by demons, for the score. */
   buildingsLost = 0;
   /** Corpses harvested (by hand; Collectors from M7 count too), for the end screen. */
   corpsesHarvested = 0;
@@ -111,16 +121,29 @@ export class Game {
 
   private readonly noBuildZone = new Set<number>();
   private readonly lootRng: Rng;
+  /** Building randomness: starting base layout and Collector cooldowns. */
+  private readonly buildRng: Rng;
   private nextCorpseId = 1;
   private nextEnemyId = 1;
+  private nextBuildingId = PHYLACTERY_ID + 1;
   private readonly neighbors: Enemy[] = [];
   private readonly playerTerrain: PlayerTerrain;
+  /** Enemies collide with rock, ungenerated ground, and every building (Bone Doors included). */
   private readonly groundBlocked = (tx: number, ty: number): boolean =>
     !isWalkableTile(this.map.getTile(tx, ty)) || this.buildings.has(tx, ty);
+  /** The player collides with the same, except Bone Doors. */
+  private readonly playerBlocked = (tx: number, ty: number): boolean => {
+    if (!isWalkableTile(this.map.getTile(tx, ty))) return true;
+    const id = this.buildings.buildingAt(tx, ty);
+    if (id === undefined) return false;
+    return !(this.buildingsById.get(id)?.def.playerPassable ?? false);
+  };
 
   constructor(
     readonly seed: number,
     readonly events: EventBus<GameEvents>,
+    /** `startingBase: false` skips the free walls and Totem (for focused tests). */
+    options: { startingBase?: boolean } = {},
   ) {
     this.map = new ChunkMap(seed);
     this.cycle = new DayCycle(events);
@@ -140,16 +163,178 @@ export class Game {
     );
     this.director = new SpawnDirector(new Rng(hashInts(seed, SPAWN_STREAM)));
     this.lootRng = new Rng(hashInts(seed, LOOT_STREAM));
+    this.buildRng = new Rng(hashInts(seed, BUILD_STREAM));
 
     this.playerTerrain = {
       speedMultiplierAt: (x, y) => groundSpeedMultiplier(this.map.getTile(Math.floor(x), Math.floor(y))),
-      isBlocked: this.groundBlocked,
+      isBlocked: this.playerBlocked,
     };
 
     events.on('chunk:generated', ({ chunkX, chunkY }) =>
       this.fields.chunkGenerated(chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE, CHUNK_SIZE),
     );
     this.generateChunks();
+    if (options.startingBase ?? true) this.buildStartingBase();
+  }
+
+  /** Section 10.5: free walls on the ring 2 tiles out (60% each, never closed), then one Totem. */
+  private buildStartingBase(): void {
+    const plan = planStartingBase(
+      this.buildRng,
+      this.phylactery.footprint,
+      { x: PLAYER.startTile.x, y: PLAYER.startTile.y },
+      (t) => placementProblem({ x: t.x, y: t.y, w: 1, h: 1 }, this.placementWorld(), true) === undefined,
+    );
+    for (const w of plan.walls) this.placeBuilding('wall', w.x, w.y, { free: true });
+    if (plan.totem) this.placeBuilding('totem', plan.totem.x, plan.totem.y, { free: true, ignoreNoBuildZone: true });
+  }
+
+  private placementWorld(): PlacementWorld {
+    return {
+      getTile: (x, y) => this.map.getTile(x, y),
+      isOccupied: (x, y) => this.buildings.has(x, y),
+      isNoBuildZone: (x, y) => this.isNoBuildZone(x, y),
+      units: () => [
+        { x: this.player.x, y: this.player.y, radius: PLAYER.radius },
+        ...this.enemies.filter((e) => e.alive).map((e) => ({ x: e.x, y: e.y, radius: e.def.radius })),
+      ],
+    };
+  }
+
+  /** Why a terrain edit cannot be made here (including cost), or undefined. Does not make it. */
+  editProblem(edit: TerrainEdit, tileX: number, tileY: number): string | undefined {
+    const problem = terrainEditProblem(edit, tileX, tileY, {
+      getTile: (x, y) => this.map.getTile(x, y),
+      isBuilding: (x, y) => this.buildings.has(x, y),
+      isNoBuildZone: (x, y) => this.isNoBuildZone(x, y),
+    });
+    if (problem) return problem;
+    return this.resources.canAfford(TERRAIN_EDITS[edit].cost) ? undefined : 'Not enough resources';
+  }
+
+  /** Why a building of this kind cannot go here (including cost), or undefined. Does not place it. */
+  buildProblem(kind: BuildingKind, x: number, y: number): string | undefined {
+    const def = BUILDINGS[kind];
+    const problem = placementProblem({ x, y, w: def.w, h: def.h }, this.placementWorld());
+    if (problem) return problem;
+    return this.resources.canAfford(def.cost) ? undefined : 'Not enough resources';
+  }
+
+  /**
+   * Places a building with its top-left tile at (x, y), paying its cost unless `free`.
+   * Returns the building, or the reason it could not be placed.
+   */
+  placeBuilding(kind: BuildingKind, x: number, y: number, options: { free?: boolean; ignoreNoBuildZone?: boolean } = {}): Building | string {
+    const def = BUILDINGS[kind];
+    const fp: Footprint = { x, y, w: def.w, h: def.h };
+    const problem = placementProblem(fp, this.placementWorld(), options.ignoreNoBuildZone ?? false);
+    if (problem) return problem;
+    const free = options.free ?? false;
+    if (!free && !this.spend(def.cost)) return 'Not enough resources';
+    const building = createBuilding(this.nextBuildingId++, kind, x, y, free);
+    if (kind === 'collector') building.cooldown = this.buildRng.range(COLLECTOR.cooldownMin, COLLECTOR.cooldownMax);
+    this.buildingsById.set(building.id, building);
+    this.buildings.place(building.id, fp);
+    this.noSpawn.add(fp, def.noSpawnRadius);
+    this.fields.markAllDirty();
+    this.events.emit('building:placed', { id: building.id, kind });
+    return building;
+  }
+
+  /** The player removes a building: 50% refund (nothing for free starting buildings). */
+  removeBuilding(id: number): boolean {
+    const building = this.buildingsById.get(id);
+    if (!building) return false;
+    this.unregisterBuilding(building);
+    const refund = building.free ? {} : this.gain(shareOf(building.def.cost, BUILD_RULES.removeRefund));
+    const c = footprintCenter(building.footprint);
+    this.events.emit('building:removed', { id, kind: building.kind, x: c.x, y: c.y, refund });
+    return true;
+  }
+
+  /** The building (or none) whose footprint covers a tile. */
+  buildingAtTile(tileX: number, tileY: number): Building | undefined {
+    const id = this.buildings.buildingAt(tileX, tileY);
+    return id === undefined ? undefined : this.buildingsById.get(id);
+  }
+
+  private unregisterBuilding(building: Building): void {
+    this.buildingsById.delete(building.id);
+    this.buildings.remove(building.footprint);
+    this.noSpawn.remove(building.footprint, building.def.noSpawnRadius);
+    this.fields.markAllDirty();
+  }
+
+  private destroyBuilding(building: Building): void {
+    this.unregisterBuilding(building);
+    this.buildingsLost++;
+    const drop = building.free ? {} : this.gain(shareOf(building.def.cost, BUILD_RULES.destroyDrop));
+    const c = footprintCenter(building.footprint);
+    this.events.emit('building:destroyed', { id: building.id, kind: building.kind, x: c.x, y: c.y, drop });
+  }
+
+  /** True while the player is within an Altar's aura (mana regen, all resource counters shown). */
+  nearAltar(): boolean {
+    for (const b of this.buildingsById.values()) {
+      if (b.kind !== 'altar') continue;
+      const c = footprintCenter(b.footprint);
+      if (Math.hypot(c.x - this.player.x, c.y - this.player.y) <= ALTAR.auraRadius) return true;
+    }
+    return false;
+  }
+
+  /** What hold-R would repair: the nearest damaged building or Phylactery within range. */
+  repairCandidate(): { target: Repairable; cost: ResourceAmounts; footprint: Footprint } | undefined {
+    let best: { target: Repairable; cost: ResourceAmounts; footprint: Footprint } | undefined;
+    let bestD: number = BUILD_RULES.repairRange;
+    const consider = (target: Repairable, cost: ResourceAmounts, footprint: Footprint) => {
+      if (target.hp >= target.maxHp || target.hp <= 0) return;
+      const d = distanceToFootprint(this.player.x, this.player.y, footprint);
+      if (d <= bestD) {
+        bestD = d;
+        best = { target, cost, footprint };
+      }
+    };
+    consider(this.phylactery, PHYLACTERY.repairCost, this.phylactery.footprint);
+    for (const b of this.buildingsById.values()) consider(b, b.def.cost, b.footprint);
+    return best;
+  }
+
+  private updateRepair(dt: number, held: boolean): void {
+    if (!held) return;
+    const candidate = this.repairCandidate();
+    if (!candidate) return;
+    const healed = stepRepair(candidate.target, candidate.cost, BUILD_RULES.repairRate, dt, (id) => this.spend({ [id]: 1 }));
+    if (healed > 0) this.events.emit('building:repaired', { amount: healed });
+  }
+
+  /** Totems shoot and Collectors harvest (section 10.2). */
+  private updateBuildings(dt: number): void {
+    for (const b of this.buildingsById.values()) {
+      b.cooldown = Math.max(0, b.cooldown - dt);
+      if (b.cooldown > 0) continue;
+      const center = footprintCenter(b.footprint);
+      if (b.kind === 'totem') {
+        const nearby = this.enemyHash.queryRadius(center.x, center.y, TOTEM.range).filter((e) => e.alive);
+        const target = nearestWithin(center, nearby, TOTEM.range);
+        if (!target) continue;
+        this.projectiles.push(totemBolt(center, target));
+        b.cooldown = TOTEM.interval;
+      } else if (b.kind === 'collector') {
+        const corpse = nearestWithin(center, this.corpses, COLLECTOR.range);
+        if (!corpse) continue;
+        if (this.harvest?.corpse === corpse) this.harvest = undefined;
+        this.collectCorpse(corpse);
+        b.cooldown = this.buildRng.range(COLLECTOR.cooldownMin, COLLECTOR.cooldownMax);
+      }
+    }
+  }
+
+  /** Night light sources besides the player: Grave Lanterns. */
+  lanterns(): Point[] {
+    const out: Point[] = [];
+    for (const b of this.buildingsById.values()) if (b.kind === 'lantern') out.push(footprintCenter(b.footprint));
+    return out;
   }
 
   /** The 16 tiles bordering the Phylactery, where the player cannot build (section 10.4). */
@@ -220,6 +405,8 @@ export class Game {
     if (this.outcome) return;
     this.cycle.advance(dt);
     updatePlayer(this.player, command.move, command.aim, dt, this.playerTerrain);
+    if (this.nearAltar()) this.player.mana = Math.min(this.player.maxMana, this.player.mana + ALTAR.manaRegenAura * dt);
+    this.updateRepair(dt, command.repair ?? false);
     if (command.bolt) {
       const bolt = tryCastBolt(this.player, command.aim);
       if (bolt) this.projectiles.push(bolt);
@@ -239,6 +426,7 @@ export class Game {
 
     this.enemyHash.clear();
     for (const enemy of this.enemies) this.enemyHash.insert(enemy);
+    this.updateBuildings(dt);
     this.updateProjectiles(dt);
     for (const enemy of this.enemies) {
       if (enemy.alive) this.updateEnemy(enemy, dt);
@@ -514,7 +702,13 @@ export class Game {
       this.phylactery.hp = Math.max(0, this.phylactery.hp - amount);
       this.events.emit('phylactery:damaged', { amount, hp: this.phylactery.hp });
       if (this.phylactery.hp <= 0 && this.phylacteryLossEnabled) this.lose('phylactery');
+      return;
     }
+    const building = this.buildingsById.get(buildingId);
+    if (!building) return;
+    building.hp = Math.max(0, building.hp - amount);
+    this.events.emit('building:damaged', { id: building.id, hp: building.hp });
+    if (building.hp <= 0) this.destroyBuilding(building);
   }
 
   private lose(cause: RunOutcome['cause']): void {

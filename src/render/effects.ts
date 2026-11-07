@@ -6,7 +6,7 @@
 
 import { CHAIN } from '../data/spells';
 import { TILE_SIZE } from '../data/tuning';
-import { RESOURCE_ORDER, RESOURCES } from '../data/resources';
+import { RESOURCE_ORDER, RESOURCES, type ResourceAmounts } from '../data/resources';
 import { DAMAGE_NUMBERS, PICKUP_POPUPS, SWIPE } from '../data/ui';
 import type { EventBus, GameEvents } from '../core/events';
 import type { Point } from '../core/input';
@@ -126,23 +126,27 @@ export class Effects {
         this.numbers.push({ x: e.x, y: e.y - 0.4, text: String(Math.round(e.amount)), age: 0 }),
       ),
       events.on('chain:cast', (e) => this.chains.push({ path: jaggedPath(e.points, this.visualRng), age: 0 })),
-      // "+3 Bone" style lines over the corpse, one per resource gained.
-      events.on('corpse:harvested', (e) => {
-        let line = 0;
-        for (const id of RESOURCE_ORDER) {
-          const n = e.loot[id];
-          if (!n) continue;
-          this.popups.push({
-            x: e.x,
-            y: e.y - 0.5 - line * PICKUP_POPUPS.lineHeight,
-            text: `+${n} ${RESOURCES[id].name}`,
-            color: RESOURCES[id].color,
-            age: 0,
-          });
-          line++;
-        }
-      }),
+      // "+3 Bone" style lines, one per resource gained: harvests, refunds, and destruction drops.
+      events.on('corpse:harvested', (e) => this.popupLoot(e.x, e.y, e.loot)),
+      events.on('building:removed', (e) => this.popupLoot(e.x, e.y, e.refund)),
+      events.on('building:destroyed', (e) => this.popupLoot(e.x, e.y, e.drop)),
     ];
+  }
+
+  private popupLoot(x: number, y: number, loot: ResourceAmounts): void {
+    let line = 0;
+    for (const id of RESOURCE_ORDER) {
+      const n = loot[id];
+      if (!n) continue;
+      this.popups.push({
+        x,
+        y: y - 0.5 - line * PICKUP_POPUPS.lineHeight,
+        text: `+${n} ${RESOURCES[id].name}`,
+        color: RESOURCES[id].color,
+        age: 0,
+      });
+      line++;
+    }
   }
 
   detach(): void {

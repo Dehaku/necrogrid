@@ -14,4 +14,6 @@ export interface Projectile {
   /** Hit radius in tiles. */
   radius: number;
   alive: boolean;
+  /** Who fired it (for drawing). */
+  source?: 'player' | 'totem';
 }
