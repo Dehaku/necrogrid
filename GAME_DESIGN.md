@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.23. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.24. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -36,6 +36,7 @@
 | 0.21 | Playtest feedback: pause screen kill gallery with drop-rate tooltips; cyan shooting stars on endless nights; banners when Brutes and Hellhounds first arrive; the final-day countdown moved onto the Phylactery, which now pulses faster over the run; held keys survive menus; softer sounds and a debug sound test. |
 | 0.22 | Ichor and Soul Shard swap roles everywhere: Soul Shards are now the chance drop from small and medium corpses and pay for Totems, the Altar, Marsh, and most gear; Ichor comes from large corpses and elites and pays for top-tier gear. Shooting stars live in the world, not the screen. The Phylactery stays still until the final day. Debug spike log for slow frames. |
 | 0.23 | Marsh costs Ichor again; the elite bonus is a Soul Shard again. Audio keep-alive: an inaudible signal keeps the browser's audio output awake through pauses. It did not fix the brief stutter right after leaving a pause or menu (see known issues in section 16). |
+| 0.24 | Hosted on GitHub Pages (https://dehaku.github.io/necrogrid/), deployed by a GitHub Actions workflow on every push to main after the tests pass. |
 
 ---
 
@@ -706,7 +707,8 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 
 ### M10 — Polish
 - Sound effects (optional, can be stubbed), particles, screen shake on big hits, local best-score save.
-- Set Vite's `base` to `'./'` so the build works from any folder. The hosting site is not chosen yet (GitHub Pages and itch.io both serve a static build for free).
+- Set Vite's `base` to `'./'` so the build works from any folder.
+- **Hosting (v0.24):** GitHub Pages at https://dehaku.github.io/necrogrid/. `.github/workflows/pages.yml` runs on every push to `main`: install, `npm test`, `npm run build`, then publish `dist/`. A failing test stops the deploy. itch.io remains an option (upload `dist/`).
 - **Built (v0.20):**
   - **Sound** (`src/audio/sound.ts`, values in `src/data/audio.ts`): short synthesized placeholder effects (an oscillator or filtered noise with a pitch sweep; no audio files) for bolts, Totem shots, Chain, hits, deaths, elite deaths, player and Phylactery hits, harvests, Collector takes, building, removing and destruction, Wraith shots, Mend, crafting, dusk and dawn, win, loss, and respawn. Each sound has a minimum interval so swarms do not roar. Once audio unlocks, an inaudible looping signal (about −100 dB) keeps the output awake, so the browser never puts a silent audio device to sleep (v0.23, a precaution; it did not cure the post-pause stutter). World sounds fade with distance from the view center, silent at 30 tiles. Master volume scales everything. Audio starts on the first key press or click (browser rule).
   - **Particles** (`src/render/particles.ts`, values in `src/data/fx.ts`): enemy deaths burst in the enemy's color (more for larger corpses, gold sparks for elites), hit sparks, building debris in the building's color, soul motes rising from harvested corpses, and purple sparks when the Phylactery is hit. At most 900 at once.
