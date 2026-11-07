@@ -4,11 +4,15 @@ import type { EnemyId } from './enemies';
 import { VIEW_RADIUS } from './tuning';
 
 export const SPAWN = {
-  /** Day rate = dayRateBase + dayRatePerDay × (day − 1), capped at dayRateCap. Enemies per second. */
+  /**
+   * Enemies per second on day 1: dayRateBase by day, nightRate at night, blending at dusk
+   * and dawn. Both are multiplied by the day's growth: 1 + dailyGrowth × (day − 1), capped
+   * at growthCap (×2.5 on day 7; the cap is reached on day 13 in endless).
+   */
   dayRateBase: 1.0,
-  dayRatePerDay: 0.1,
-  dayRateCap: 3.0,
   nightRate: 0.2,
+  dailyGrowth: 0.25,
+  growthCap: 4,
   packSizeDay: { min: 3, max: 6 },
   packSizeNight: { min: 1, max: 2 },
   /** Budget never exceeds this (2 × the largest pack). */
@@ -26,7 +30,10 @@ export const SPAWN = {
   memberSearchRadius: 3,
   /** Tiles added around the visible view for the off-screen check. */
   offscreenMargin: 2,
+  /** Most enemies alive at once: maxActiveEnemies + maxActivePerDay × (day − 1), capped at maxActiveCap. */
   maxActiveEnemies: 150,
+  maxActivePerDay: 20,
+  maxActiveCap: 300,
   /** Enemies farther than this from both the player and the Phylactery are removed. */
   despawnDistance: 2 * VIEW_RADIUS,
   /** Enemy types the director may spawn. */

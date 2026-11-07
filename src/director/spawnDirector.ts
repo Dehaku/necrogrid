@@ -48,10 +48,19 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+/** How much more spawns on a day than on day 1, for every enemy type and phase. */
+export function dailyGrowth(day: number): number {
+  return Math.min(1 + SPAWN.dailyGrowth * (day - 1), SPAWN.growthCap);
+}
+
 /** Enemies per second for a day and night blend. */
 export function spawnRate(day: number, nightBlend: number): number {
-  const dayRate = Math.min(SPAWN.dayRateBase + SPAWN.dayRatePerDay * (day - 1), SPAWN.dayRateCap);
-  return lerp(dayRate, SPAWN.nightRate, nightBlend);
+  return lerp(SPAWN.dayRateBase, SPAWN.nightRate, nightBlend) * dailyGrowth(day);
+}
+
+/** Most enemies alive at once on a day. */
+export function activeEnemyCap(day: number): number {
+  return Math.min(SPAWN.maxActiveEnemies + SPAWN.maxActivePerDay * (day - 1), SPAWN.maxActiveCap);
 }
 
 /** Spawn weights for the active roster, blended by phase, without enemies below their minDay. */
@@ -122,7 +131,8 @@ export class SpawnDirector {
     while (this.attempts.length > 0 && this.time - this.attempts[0]!.at > ATTEMPT_MEMORY) this.attempts.shift();
     if (this.paused) return [];
 
-    if (world.activeEnemies < SPAWN.maxActiveEnemies) {
+    const cap = activeEnemyCap(world.day);
+    if (world.activeEnemies < cap) {
       this.budget = Math.min(this.budget + spawnRate(world.day, world.nightBlend) * dt, SPAWN.budgetCap);
     }
     if (this.retryTimer > 0) {
@@ -142,7 +152,7 @@ export class SpawnDirector {
     }
 
     const packSize = this.nextPackSize;
-    const room = Math.max(0, SPAWN.maxActiveEnemies - world.activeEnemies);
+    const room = Math.max(0, cap - world.activeEnemies);
     const used = new Set<string>();
     const requests: SpawnRequest[] = [];
     for (let m = 0; m < packSize && requests.length < room; m++) {

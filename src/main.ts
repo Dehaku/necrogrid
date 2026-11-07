@@ -473,11 +473,12 @@ function drawRun(run: Game): void {
   if (arrow) drawEdgeArrow(ctx, arrow, time - lastPhylacteryHit < 2, performance.now());
   if (buildMode.active) drawHotbar(ctx, buildMode, (cost) => run.resources.canAfford(cost));
   const amount = (id: ResourceId) => run.resources.get(id);
-  resourceHud.draw(ctx, amount, equipmentScreen.isOpen || craftMenu.isOpen || run.nearAltar());
+  const cap = (id: ResourceId) => run.resources.cap(id);
+  resourceHud.draw(ctx, amount, cap, equipmentScreen.isOpen || craftMenu.isOpen || run.nearAltar());
   if (settings?.spawnOverlay) drawSpawnInset(ctx, run);
   if (equipmentScreen.isOpen) {
     equipmentScreen.hover(input.mouse, run.gear);
-    equipmentScreen.draw(ctx, amount, run.gear, run.stats);
+    equipmentScreen.draw(ctx, amount, cap, run.gear, run.stats);
   }
   if (craftMenu.isOpen) {
     craftMenu.hover(input.mouse);

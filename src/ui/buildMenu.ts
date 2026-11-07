@@ -1,7 +1,7 @@
 // Build mode: the hotbar, the placement ghost, and its tooltip. GAME_DESIGN.md sections 4.1
 // (ghost), 8.4 (build hotbar), and 10.2 (roster). Build mode does not pause the game.
 
-import { BUILDINGS, COLLECTOR, HOTBAR, TERRAIN_EDITS, TOTEM, type BuildChoice } from '../data/buildings';
+import { BUILDINGS, COLLECTOR, HOTBAR, LANTERN, TERRAIN_EDITS, TOTEM, type BuildChoice } from '../data/buildings';
 import { RESOURCE_ORDER, RESOURCES, type ResourceAmounts } from '../data/resources';
 import { TILE_PROPS, TILE } from '../data/terrain';
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
@@ -26,7 +26,8 @@ export function choiceInfo(choice: BuildChoice): ChoiceInfo {
     return { name: edit.name, cost: edit.cost, w: 1, h: 1, color, description: edit.description };
   }
   const def = BUILDINGS[choice];
-  const range = choice === 'totem' ? TOTEM.range : choice === 'collector' ? COLLECTOR.range : undefined;
+  const range =
+    choice === 'totem' ? TOTEM.range : choice === 'collector' ? COLLECTOR.range : choice === 'lantern' ? LANTERN.auraRadius : undefined;
   return { name: def.name, cost: def.cost, w: def.w, h: def.h, color: def.color, description: def.description, range };
 }
 

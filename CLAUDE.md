@@ -10,11 +10,11 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 
 ## Current status
 
-- Milestone: **M9 done** (Wraiths with fade-in, Lantern targeting, and shots; Hellhounds from day 5; day-15 completion, win screen and endless; respawn after completion; Phylactery loss on; warning banners). Next: M10. Update this line when a milestone is finished.
+- Milestone: **M9 done** (Wraiths with fade-in, Lantern targeting, and shots; Hellhounds from day 5; final-day completion, win screen and endless; respawn after completion; Phylactery loss on; warning banners). v0.19 tweaks: 7-day run of 135 s cycles, daily spawn growth, Brutes from day 3, Lantern heal/repair aura, Altar cap bonus. Next: M10. Update this line when a milestone is finished.
 - Before M10 a human should play one full run at 1× (GAME_DESIGN.md M9 "Done when"); the automated soak run (day 1 → completion) passes but is not a playtest.
 - Player combat numbers come from `Game.stats` (base stats + equipped gear). Pass `stats` into Bolt, Chain, mana regen, and the spell bar; never read `BOLT.damage` etc. directly for gameplay.
 - `new Game(seed, events, { startingBase: false })` skips the free walls and Totem; use it in tests that need open ground around the Phylactery.
-- Resources change only through `Game.gain` / `Game.spend`, which emit `resources:changed` (the HUD counters depend on it).
+- Resources change only through `Game.gain` / `Game.spend`, which emit `resources:changed` (the HUD counters depend on it). Caps come from `game.resources.cap(id)` (base cap + Altar bonus); `resourceCap(id)` is only the base.
 - The page opens on the title screen with no run. `main.ts` owns `game` (undefined when no run is active) and creates a fresh `Game` and `EventBus` per run; anything that listens to game events must re-attach per run (see `Effects.attach`).
 - `SPAWN.activeRoster` in `src/data/spawn.ts` lists the enemies the director spawns (all five since M9).
 

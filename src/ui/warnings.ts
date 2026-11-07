@@ -1,5 +1,5 @@
 // Warning banners, top-center under the Phylactery panel. GAME_DESIGN.md section 8.4.
-// Event-driven ones (attack, day 15, completion) listen to the run's events; time-based ones
+// Event-driven ones (attack, final day, completion) listen to the run's events; time-based ones
 // (dusk, dawn, critical) are checked each tick from the cycle and Phylactery state. Banners age
 // with simulation time, like the other effects.
 
@@ -43,7 +43,7 @@ export class Warnings {
         this.show(WARNINGS.text.underAttack);
       }),
       events.on('phase:day', ({ day }) => {
-        if (day === DAY_CYCLE.winDay) this.show(WARNINGS.text.day15);
+        if (day === DAY_CYCLE.winDay) this.show(WARNINGS.text.finalDay);
       }),
       events.on('run:won', () => this.show(WARNINGS.text.complete)),
     ];

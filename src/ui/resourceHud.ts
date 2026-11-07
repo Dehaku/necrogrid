@@ -5,7 +5,6 @@
 import { RESOURCE_ORDER, RESOURCES, type ResourceId } from '../data/resources';
 import { RESOURCE_HUD } from '../data/ui';
 import type { EventBus, GameEvents } from '../core/events';
-import { resourceCap } from '../economy/resources';
 
 /** Counter opacity `sinceChange` seconds after its resource last changed. */
 export function counterOpacity(sinceChange: number): number {
@@ -28,7 +27,7 @@ export class ResourceHud {
     for (const id of RESOURCE_ORDER) this.since[id] += dt;
   }
 
-  draw(ctx: CanvasRenderingContext2D, amount: (id: ResourceId) => number, showAll: boolean): void {
+  draw(ctx: CanvasRenderingContext2D, amount: (id: ResourceId) => number, cap: (id: ResourceId) => number, showAll: boolean): void {
     let row = 0;
     ctx.font = '600 14px system-ui, sans-serif';
     ctx.textBaseline = 'middle';
@@ -45,7 +44,7 @@ export class ResourceHud {
       ctx.textAlign = 'left';
       ctx.fillText(RESOURCES[id].name, x + 16, y);
       ctx.textAlign = 'right';
-      ctx.fillStyle = amount(id) >= resourceCap(id) ? '#ffcf5a' : '#f2ead8';
+      ctx.fillStyle = amount(id) >= cap(id) ? '#ffcf5a' : '#f2ead8';
       ctx.fillText(String(amount(id)), x + 140, y);
       row++;
     }

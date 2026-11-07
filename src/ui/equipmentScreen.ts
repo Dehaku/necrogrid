@@ -10,7 +10,6 @@ import type { Point } from '../core/input';
 import type { Stats } from '../core/stats';
 import { effectsText } from '../crafting/crafting';
 import type { GearState } from '../crafting/unlocks';
-import { resourceCap } from '../economy/resources';
 import { drawBox, hitIndex, type MenuPress, type Rect } from './menuWidgets';
 
 export type EquipAction = { equip: GearId } | { unequip: GearSlot } | 'close';
@@ -91,7 +90,7 @@ export class EquipmentScreen {
     if (i >= 0) this.focus = i;
   }
 
-  draw(ctx: CanvasRenderingContext2D, amount: (id: ResourceId) => number, gear: GearState, stats: Stats): void {
+  draw(ctx: CanvasRenderingContext2D, amount: (id: ResourceId) => number, cap: (id: ResourceId) => number, gear: GearState, stats: Stats): void {
     ctx.fillStyle = TITLE.pauseOverlay;
     ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
     drawBox(ctx, BOX);
@@ -118,8 +117,8 @@ export class EquipmentScreen {
       ctx.fillStyle = MENU.focusText;
       ctx.fillText(RESOURCES[id].name, BOX.x + 44, y);
       ctx.textAlign = 'right';
-      ctx.fillStyle = amount(id) >= resourceCap(id) ? '#ffcf5a' : MENU.focusText;
-      ctx.fillText(`${amount(id)} / ${resourceCap(id)}`, BOX.x + 230, y);
+      ctx.fillStyle = amount(id) >= cap(id) ? '#ffcf5a' : MENU.focusText;
+      ctx.fillText(`${amount(id)} / ${cap(id)}`, BOX.x + 230, y);
     });
 
     // Slot columns.

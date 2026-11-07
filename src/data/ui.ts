@@ -1,5 +1,7 @@
 // HUD, menu, and effect values. Data only. GAME_DESIGN.md sections 7 (swipes), 8.4 (HUD), 8.5 (title).
 
+import { DAY_CYCLE } from './time';
+
 export const CRESCENT = {
   /** Distance from the necromancer's center, in tiles. */
   radius: 1,
@@ -78,7 +80,7 @@ export const WARNINGS = {
     dawn: 'Dawn approaching. The swarm returns',
     underAttack: 'Phylactery under attack!',
     critical: 'Phylactery critical!',
-    day15: 'Day 15. The binding begins',
+    finalDay: `Day ${DAY_CYCLE.winDay}. The binding begins`,
     complete: 'The Phylactery is complete',
   },
 } as const;

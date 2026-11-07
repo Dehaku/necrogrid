@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.18. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.19. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -31,6 +31,7 @@
 | 0.16 | Starting Totem back on the inner ring, and the player can walk through it. Build ghost: description line, and reach circles for the Totem and Collector. Gray jagged line when a Collector harvests. Shamblers: no pathfinding, straight at the target with a sway. |
 | 0.17 | Starting base: the Totem (solid again) and a new free Corpse Collector both go on the wall ring, placed after the walls and taking priority over them; the ring is still never fully closed. |
 | 0.18 | M9 built: Wraiths (fade-in, Lantern targeting, slow shots blocked by buildings) and Hellhounds join the roster; day-15 countdown and win screen with endless Continue; respawn after completion; Phylactery destruction ends the run; warning banners. |
+| 0.19 | Shorter run: day 75 s and night 40 s (dusk and dawn stay 10 s), and the Phylactery completes on day 7 instead of day 15. Spawns of every enemy grow each day, day and night (×2.5 by day 7), and the active cap grows with them. Brutes from day 3. Grave Lanterns slowly heal the player and repair buildings for free. Each Altar adds 50 to every resource cap. |
 
 ---
 
@@ -58,7 +59,7 @@ You are a necromancer holding back waves of demons in a procedurally generated w
 ```
 
 **Minute-to-minute:** move, aim, cast bolt, chain enemies, step over corpses to harvest them, retreat behind walls.
-**Session-level:** defend the Phylactery until it completes on day 15 (section 11).
+**Session-level:** defend the Phylactery until it completes on day 7 (section 11).
 
 ## 4. World and Map
 
@@ -111,15 +112,15 @@ A single repeating cycle with four phases.
 
 | Phase | Length |
 |---|---|
-| Day | 150 s |
+| Day | 75 s |
 | Dusk | 10 s (lighting and spawn rate blend from day to night) |
-| Night | 80 s |
+| Night | 40 s |
 | Dawn | 10 s (lighting and spawn rate blend from night to day) |
-| **Full cycle** | **250 s** |
+| **Full cycle** | **135 s** |
 
 - The run starts at the beginning of day 1.
 - A **day counter** increments at the start of each day. It appears in the HUD.
-- Day 15 begins at 3,500 s (about 58 minutes). The Phylactery completes at 3,650 s (about 61 minutes).
+- Day 7 begins at 810 s (13.5 minutes). The Phylactery completes at 885 s (about 15 minutes).
 - Night uses a vignette and a lower ambient light value. The player's light radius is 10 tiles; Grave Lanterns add more (section 10.2).
 - Phase changes emit events (`phase:dusk`, `phase:night`, `phase:dawn`, `phase:day`) that other systems can listen to.
 
@@ -131,11 +132,11 @@ The spawn director decides when, where, and what to spawn. It runs on the same t
 
 | Phase | Rate | Behavior |
 |---|---|---|
-| Day | 1.0 / s, ramping up each day | Large swarms, mostly fast weak enemies |
+| Day | 1.0 / s on day 1, growing each day | Large swarms, mostly fast weak enemies |
 | Dusk / dawn | Linear blend between day and night rates | |
-| Night | 0.2 / s | Sparse, but tougher: Brutes and Wraiths make up most of it |
+| Night | 0.2 / s on day 1, growing each day | Sparse, but tougher: Brutes (from day 3) and Wraiths make up most of it |
 
-Per-day ramp: `dayRate = 1.0 + 0.1 × (day − 1)`, capped at 3.0 / s. Day 15 runs at 2.4 / s.
+Per-day growth: both rates are multiplied by `1 + 0.25 × (day − 1)` (`dailyGrowth`), capped at ×4 (`growthCap`, reached on day 13 in endless). Every enemy type and phase grows together. Day 7 runs at 2.5 / s by day and 0.5 / s at night.
 
 **Spawn budget:**
 - Each tick, `budget += rate × dt`.
@@ -149,7 +150,7 @@ Per-day ramp: `dayRate = 1.0 + 0.1 × (day − 1)`, capped at 3.0 / s. Day 15 ru
 |---|---|---|
 | Imp | 60 | — |
 | Shambler | 30 | 40 |
-| Brute | 8 | 20 |
+| Brute (day 3+) | 8 | 20 |
 | Hellhound (day 5+) | 6 | — |
 | Wraith | — | 40 |
 
@@ -183,7 +184,7 @@ During dusk and dawn, each enemy's weight blends linearly between its day and ni
 - Wraiths appear on **every night**, from day 1 onward.
 
 **Limits:**
-- `maxActiveEnemies = 150` across the whole world. The budget stops growing while the count is at the cap.
+- Active cap across the whole world: `150 + 20 × (day − 1)` (`maxActiveEnemies`, `maxActivePerDay`), up to 300 (`maxActiveCap`). Day 7 allows 270. The budget stops growing while the count is at the cap.
 - An enemy farther than 2 × view radius from both the player and the Phylactery is removed without leaving a corpse.
 
 ## 7. Enemies
@@ -194,7 +195,7 @@ All enemies are defined as data in `src/data/enemies.ts`. Adding an enemy means 
 |---|---|---|---|---|---|---|---|
 | **Imp** | Day | 10 | 90 | 4 | melee, 0.8 s | small | Fast, arrives in packs |
 | **Shambler** | Day + Night | 25 | 45 | 6 | melee, 1.2 s | medium | Slow and dumb: no pathfinding. Walks straight at its target with a shambling sway, and attacks any building in the way |
-| **Brute** | Day + Night | 90 | 30 | 18 | melee, 2.0 s | large | Tanky, breaks walls quickly (`buildingDamageMultiplier = 2`) |
+| **Brute** | Day + Night, from day 3 (`minDay = 3`) | 90 | 30 | 18 | melee, 2.0 s | large | Tanky, breaks walls quickly (`buildingDamageMultiplier = 2`) |
 | **Wraith** | Night only | 40 | 70 | 8 | ranged, 2.5 s, range 6 tiles | medium | Flies directly toward its target. Ignores walls and `rock` for movement. Stops when its target is in range and fires slow shots. Spawns by the normal rules (section 6) |
 | **Hellhound** | Day, from day 5 (`minDay = 5`) | 35 | 120 | 10 | melee, 1.0 s | medium | Rare, fast flanker |
 
@@ -324,7 +325,7 @@ Drawn in screen space by `src/ui/hud.ts`, after the world. Each element lists th
 | **Health crescent** | Around the necromancer, left side | Red arc over a black background arc. See crescent rules below | M4 |
 | **Mana crescent** | Around the necromancer, right side | Blue arc over a black background arc. Same rules | M4 |
 | **Day ring** | Top-right corner | Pie-slice clock of the cycle. See day ring rules below | M2 |
-| **Phylactery panel** | Top-center | Phylactery HP bar, colored like health bars (below). On day 15 a completion countdown (`2:30` → `0:00`) appears under it. After completion it reads "Bound" | M7 (HP), M9 (countdown) |
+| **Phylactery panel** | Top-center | Phylactery HP bar, colored like health bars (below). On day 7 a completion countdown (`1:15` → `0:00`) appears under it. After completion it reads "Bound" | M7 (HP), M9 (countdown) |
 | **Phylactery arrow** | Screen edge | While the Phylactery is off screen, an arrow at the screen edge points toward it. It flashes red for 2 s after the Phylactery takes damage | M7 |
 | **Resources** | Top-left | Compact counters (Bone, Flesh, Ichor, Soul Shard). See resource rules below | M6 |
 | **Pickup popups** | In the world, over the corpse or Collector | "+3 Bone" style text, rising and fading over 1 s. One line per resource gained | M6 |
@@ -353,10 +354,10 @@ Drawn in screen space by `src/ui/hud.ts`, after the world. Each element lists th
 - The Phylactery has no bar in the world; its HP shows in the Phylactery panel, which uses the same colors. The player uses the health crescent instead.
 
 **Day ring rules:**
-- A 64 px circle split into pie slices sized by each phase's share of the 250 s cycle: day 60%, dusk 4%, night 32%, dawn 4%.
+- A 64 px circle split into pie slices sized by each phase's share of the 135 s cycle: day 56%, dusk 7%, night 30%, dawn 7%.
 - Slice colors: day gold `#e8b94a`, dusk orange `#d9673b`, night indigo `#2b2f6b`, dawn rose `#d98aa6`.
 - Day starts at 12 o'clock and the slices run clockwise. A white hand points at the current moment of the cycle.
-- The center shows "Day 7 / 15". After the win it shows only "Day 17" (endless mode). The current phase name is written under the ring.
+- The center shows "Day 3 / 7". After the win it shows only "Day 9" (endless mode). The current phase name is written under the ring.
 
 **Resource rules (compact mode):**
 - Counters are hidden by default.
@@ -371,7 +372,7 @@ Drawn in screen space by `src/ui/hud.ts`, after the world. Each element lists th
 | "Dawn approaching. The swarm returns" | 10 s before dawn |
 | "Phylactery under attack!" | When the Phylactery takes damage, at most once every 15 s |
 | "Phylactery critical!" | When Phylactery HP falls below 25%. Shown again only after it has been repaired above 25% |
-| "Day 15. The binding begins" | Start of day 15 |
+| "Day 7. The binding begins" | Start of day 7 (the final day, `DAY_CYCLE.winDay`) |
 | "The Phylactery is complete" | On completion (the win) |
 
 ### 8.5 Title and Pause Screen
@@ -421,7 +422,7 @@ Resources are plain counters. They go up when harvested and down when spent. The
 | **Ichor** | rare | Any corpse (chance on small and medium, guaranteed on large) | Magic buildings, advanced gear |
 | **Soul Shard** | rare | Large corpses (Brutes) and every elite, guaranteed | Top-tier gear |
 
-Cap: 200 of each basic resource, 50 of each rare resource. Anything over the cap is lost.
+Cap: 200 of each basic resource, 50 of each rare resource. Each standing Altar adds 50 to every cap (`ALTAR.capBonus`, stacking). Anything gained over the cap is lost. If an Altar is lost, amounts already above the new cap are kept but cannot grow until spent below it.
 
 ### 9.2 Corpses
 
@@ -469,8 +470,8 @@ The loot table lives in `src/data/loot.ts`, keyed by corpse size. Elite corpses 
 | 2 | **Bone Door** | 1×1 | 12 Bone | 150 | Same as a Bone Wall, but the player can walk through it. Enemies cannot |
 | 3 | **Bone Totem** | 1×1 | 10 Bone, 5 Ichor | 80 | Turret. Fires a bolt at the nearest enemy within 6 tiles every 1.0 s, damage 8 |
 | 4 | **Corpse Collector** | 1×1 | 8 Bone, 2 Flesh | 80 | Instantly harvests the nearest corpse within 3 tiles, then waits a random 3–5 s cooldown (section 10.2.1) |
-| 5 | **Altar** | 2×2 | 10 Flesh, 10 Ichor | 150 | Crafting station. +4 mana regen aura, radius 5 tiles |
-| 6 | **Grave Lantern** | 1×1 | 3 Bone, 2 Flesh | 40 | Lights a 4-tile radius around itself at night. Draws Wraith targeting (decoy, `aggroWeight = 2`) |
+| 5 | **Altar** | 2×2 | 10 Flesh, 10 Ichor | 150 | Crafting station. +4 mana regen aura, radius 5 tiles. +50 to every resource cap (section 9.1) |
+| 6 | **Grave Lantern** | 1×1 | 3 Bone, 2 Flesh | 40 | Lights a 4-tile radius around itself at night. Slow, free heal and repair aura (below). Draws Wraith targeting (decoy, `aggroWeight = 2`) |
 | 7 | **Marsh** | 1×1 | 10 Flesh, 1 Ichor | — | Terrain edit, not a building: turns a grass or dirt tile into `marsh`, which slows the player and ground demons by 50% |
 | 8 | **Fill** | 1×1 | 5 Bone, 5 Flesh | — | Terrain edit: turns any `marsh` tile, wild or player-made, into `dirt` (which is buildable) |
 
@@ -490,11 +491,13 @@ Totems never target a Wraith that is still fading in.
 
 **Build mode controls:** B toggles build mode (it does not pause). Esc, Tab, and E also leave build mode (and do only that: no pause screen, equipment screen, or harvest). Keys 1–8 pick from the hotbar. Left click places at the ghost; holding it and dragging places on every new tile the cursor crosses (painting walls or marsh). Right click removes the building under the cursor. While build mode is on, the mouse builds instead of casting Bolt and Chain; Q, E, and R still work. The ghost is red with the reason (including "Not enough resources") when the choice cannot go there.
 
-**Build ghost:** the tooltip shows the name and cost, a one-line description of what it does, and the reason in red when it cannot be placed. The Bone Totem and Corpse Collector ghosts also draw a dashed circle showing their reach (6 and 3 tiles).
+**Build ghost:** the tooltip shows the name and cost, a one-line description of what it does, and the reason in red when it cannot be placed. The Bone Totem, Corpse Collector, and Grave Lantern ghosts also draw a dashed circle showing their reach (6, 3, and 4 tiles).
 
 **Collector link:** when a Corpse Collector harvests, a thin gray jagged line connects it to the corpse for 0.35 s.
 
 **Grave Lantern light:** each Lantern lights a 4-tile radius around itself at night, in addition to the player's own light.
+
+**Grave Lantern aura:** always on, day and night, and free. Within 4 tiles of a Lantern's center, the player heals 1 HP/s (`LANTERN.healRate`), and every building and the Phylactery whose footprint is in reach is repaired 1 HP/s (`LANTERN.repairRate`), the Lantern itself included. Auras do not stack: standing near several Lanterns heals at the same rate as one.
 
 **Building rules:**
 - Buildings have HP. When HP reaches 0, the building is destroyed and drops 50% of its cost as resources (each resource rounded down), straight into the player's counters.
@@ -542,10 +545,10 @@ The Phylactery is the binding the necromancer is building. It is the reason the 
 | HP | 600 |
 | Repair | Hold R within 2 tiles. Costs 1 Bone per 10 HP (it has no build cost to scale from) |
 | Drops on destruction | None |
-| Completion timer | 150 s, runs for the whole of day 15 |
+| Completion timer | 75 s, runs for the whole of day 7 (the final day) |
 
-- **Construction (lore):** the binding is built over all 15 days. The necromancer works on it from the first dawn, and the lore has no separate progress for days 1–14.
-- **Construction (mechanical):** nothing happens on days 1–14 except the normal game. The completion timer runs only during day 15. It completes when it reaches 150 s with the Phylactery still standing, and that completion is the win.
+- **Construction (lore):** the binding is built over all 7 days. The necromancer works on it from the first dawn, and the lore has no separate progress for days 1–6.
+- **Construction (mechanical):** nothing happens on days 1–6 except the normal game. The completion timer runs only during day 7. It completes when it reaches 75 s with the Phylactery still standing, and that completion is the win.
 - **Immortality (flavor and effect):** completing the Phylactery binds the necromancer's soul to it. From that moment, the necromancer has infinite lives. Each death pulls on the binding (below).
 - **Respawn** (after completion only):
   1. **On death:** the Phylactery immediately loses **30 HP** (5% of max, `respawnPhylacteryCost = 30`), shown as a "−30" popup over it. If that drops it to 0, it is destroyed and the run is lost.
@@ -569,7 +572,7 @@ Gaps in the wall ring are expected. They give enemies a route in, so the first f
 
 ## 11. Win and Lose Conditions
 
-- **Win:** the Phylactery completes when day 15's day phase ends with it standing (section 10.4); the panel counts down 2:30 → 0:00 during that phase, then reads "Bound". The game pauses on "The Phylactery is complete" with a summary and a **Continue** button. Continue resumes the run in endless mode (the day ring shows "Day N" only).
+- **Win:** the Phylactery completes when day 7's day phase ends with it standing (section 10.4); the panel counts down 1:15 → 0:00 during that phase, then reads "Bound". The game pauses on "The Phylactery is complete" with a summary and a **Continue** button. Continue resumes the run in endless mode (the day ring shows "Day N" only).
 - **Respawn view:** while the necromancer is gone (3 s), the necromancer and their HUD are hidden, "Your soul returns to the Phylactery… N" counts down, and the camera pans to the Phylactery. Enemies ignore the dead necromancer.
 - **Lose (before completion):** player HP reaches 0, or the Phylactery is destroyed. The end screen shows the day reached, the number of corpses harvested, and the score, with a **Return to title** button. The run is no longer active, so the title screen shows no Resume.
 - **Lose (after completion):** only if the Phylactery is destroyed. Player death is not a loss; the necromancer respawns (section 10.4). Each death costs the Phylactery 30 HP, which can destroy it.
@@ -635,7 +638,7 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 ### M2 — Day/Night Cycle and Debug Panel
 - Time system from section 5. Lighting overlay with the player's 10-tile light radius. HUD day ring with the day counter (section 8.4). Phase events fire on transitions.
 - Debug panel with the M2 tools from section 13.
-- **Done when:** the cycle loops with the right phase lengths, lighting blends at dusk and dawn, the day counter increments, and "Jump to day 15" works.
+- **Done when:** the cycle loops with the right phase lengths, lighting blends at dusk and dawn, the day counter increments, and "Jump to day" works (to the final day, day 7).
 
 ### M3 — Enemies and Spawn Director
 - Enemy data from `src/data/enemies.ts`. Imp, Shambler, and Brute first. Elites with their marker (section 7.1).
@@ -681,9 +684,9 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 - Wraith: spawns by the section 6 rules, fades in, flies directly, stops at range, fires slow shots blocked by buildings, and uses straight-line targeting with Lantern weighting.
 - Hellhound from day 5. Night-only and minDay rules.
 - Turn on `PHYLACTERY.destructionEndsRun`.
-- Phylactery completion timer on day 15, victory on completion, respawn after completion (3 s delay with camera pan, 30 HP Phylactery cost, 3 s invulnerability, cooldown reset), loss on destruction. Scoring and win/lose screens.
+- Phylactery completion timer on the final day (day 7 since v0.19), victory on completion, respawn after completion (3 s delay with camera pan, 30 HP Phylactery cost, 3 s invulnerability, cooldown reset), loss on destruction. Scoring and win/lose screens.
 - Tuning pass against the numbers in this document. Record any changed values in section 16.
-- **Done when:** using "Jump to day 15", a run ends in victory when the Phylactery completes, the necromancer respawns on (0, 2) 3 s after death and the Phylactery loses 30 HP, a run ends in loss when the Phylactery is destroyed, and the end screen shows score. One full run at 1× is also played end-to-end.
+- **Done when:** using "Jump to day" with the final day, a run ends in victory when the Phylactery completes, the necromancer respawns on (0, 2) 3 s after death and the Phylactery loses 30 HP, a run ends in loss when the Phylactery is destroyed, and the end screen shows score. One full run at 1× is also played end-to-end.
 
 ### M10 — Polish
 - Sound effects (optional, can be stubbed), particles, screen shake on big hits, local best-score save.
@@ -867,6 +870,13 @@ Record every balance change here so intent is not lost.
 | v0.10 | Chunk generation radius | 1.5 × view | 2 × view | Spawn rings reach 40 tiles out |
 | v0.15 | Grave Lantern light radius | 3 tiles | 4 tiles | Playtest feedback |
 | v0.18 | (observation, no change) | — | — | Automated full run with an idle necromancer: the 150-enemy cap is reached by day 3 and stays full, so spawning stalls; an undefended starting base is gone by day 3. Revisit the cap and despawn rules after human playtests |
+| v0.19 | Day / night length | 150 s / 80 s | 75 s / 40 s | Shorter run; dusk and dawn stay 10 s |
+| v0.19 | Final day | 15 | 7 | Shorter run (about 15 minutes) |
+| v0.19 | Spawn ramp | Day rate +0.1 / s per day (cap 3.0), night flat 0.2 / s | Day and night rates × (1 + 0.25 × (day − 1)), cap ×4 | Difficulty did not visibly grow, and nights never grew at all |
+| v0.19 | Active enemy cap | 150 | 150 + 20 per day, up to 300 | A fixed cap stopped the ramp once enemies piled up |
+| v0.19 | Brute `minDay` | 1 | 3 | Ease the first days |
+| v0.19 | Grave Lantern | Light and decoy only | + heal 1 HP/s, repair 1 HP/s within 4 tiles, free, no stacking | Playtest request |
+| v0.19 | Resource caps | 200 basic / 50 rare | + 50 per Altar | Playtest request |
 
 ## 17. Non-Goals (v1)
 
@@ -882,7 +892,7 @@ Record every balance change here so intent is not lost.
 
 **Confirmed (v0.2):**
 1. **Spawn direction:** Day is heavy, night is sparse.
-2. **Win condition:** Complete the Phylactery on day 15, then endless (section 10.4).
+2. **Win condition:** Complete the Phylactery on day 7 (day 15 before v0.19), then endless (section 10.4).
 3. **Death:** Restart from scratch. No meta-progression in v1.
 4. **Corpse source:** Demons only.
 5. **Art direction:** Flat vector.
@@ -890,7 +900,7 @@ Record every balance change here so intent is not lost.
 
 **Confirmed (v0.3):**
 7. **Corpse fade:** A corpse fades out during the next day phase after it is created (section 9.2).
-8. **Phylactery timer:** Construction is mechanical. It runs for all of day 15 (150 s) and completes if the Phylactery is still standing. Completion is the win and grants immortality as flavor and effect (section 10.4). Lore-wise, the binding is built over all 15 days (v0.6).
+8. **Phylactery timer:** Construction is mechanical. It runs for all of the final day (day 7, 75 s, since v0.19) and completes if the Phylactery is still standing. Completion is the win and grants immortality as flavor and effect (section 10.4). Lore-wise, the binding is built over the whole run (v0.6).
 
 **Confirmed (v0.4):**
 9. **Wraith movement:** Direct flight, no pathing.
@@ -939,6 +949,12 @@ Record every balance change here so intent is not lost.
 
 **Confirmed (v0.14):**
 36. **Marsh:** all marsh, wild or player-made, slows ground demons by 50% like the player. Players can make marsh (10 Flesh, 1 Ichor, key 7) and fill any marsh into dirt (5 Bone, 5 Flesh, key 8). No refunds. Marsh stays out of the no-build zone (section 10.2).
+
+**Confirmed (v0.19):**
+37. **Run length:** 7 days of 135 s (day 75, dusk 10, night 40, dawn 10); the Phylactery completes at the end of day 7's day phase (section 5).
+38. **Difficulty ramp:** every enemy type spawns more each day, by day and by night (section 6). Brutes from day 3, Hellhounds from day 5.
+39. **Grave Lantern aura:** slow, free heal (player) and repair (buildings and Phylactery), not stacking (section 10.2).
+40. **Altar caps:** each Altar adds 50 to every resource cap, stacking (section 9.1).
 
 **Open:** none right now.
 

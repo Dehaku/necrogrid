@@ -64,7 +64,7 @@ export const ENEMIES: Readonly<Record<EnemyId, EnemyDef>> = {
   },
   brute: {
     id: 'brute', name: 'Brute', hp: 90, speed: 30, damage: 18, attackInterval: 2.0, attack: 'melee',
-    range: MELEE_RANGE, radius: 0.5, drawSize: 0.6, spawnWeightDay: 8, spawnWeightNight: 20, minDay: 1,
+    range: MELEE_RANGE, radius: 0.5, drawSize: 0.6, spawnWeightDay: 8, spawnWeightNight: 20, minDay: 3,
     movement: 'ground', corpseSize: 'large', color: '#5a3a33', shape: 'square', buildingDamageMultiplier: 2,
     navigation: 'field',
   },

@@ -74,14 +74,14 @@ describe('Resources', () => {
 
 describe('corpse fade', () => {
   it('fades by the end of the next day phase: day-made and night-made corpses alike', () => {
-    // Made during day 1 (t = 50): fades by the end of day 2's day phase (250 + 150).
-    expect(corpseExpiry(50)).toBe(400);
-    // Made during night 1 (t = 200): same deadline, the coming day.
-    expect(corpseExpiry(200)).toBe(400);
-    // Made at dawn of day 1 (t = 245): still the coming day.
-    expect(corpseExpiry(245)).toBe(400);
+    // Made during day 1 (t = 50): fades by the end of day 2's day phase (135 + 75).
+    expect(corpseExpiry(50)).toBe(210);
+    // Made during night 1 (t = 100): same deadline, the coming day.
+    expect(corpseExpiry(100)).toBe(210);
+    // Made at dawn of day 1 (t = 130): still the coming day.
+    expect(corpseExpiry(130)).toBe(210);
     // Made exactly as day 2 starts: the next day phase starting after it is day 3's.
-    expect(corpseExpiry(250)).toBe(650);
+    expect(corpseExpiry(135)).toBe(345);
   });
 
   it('drops opacity linearly from 1 to 0', () => {

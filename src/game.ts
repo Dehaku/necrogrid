@@ -124,7 +124,7 @@ export class Game {
   readonly enemyHash = new SpatialHash<Enemy>(NAV.hashCellSize);
   readonly projectiles: Projectile[] = [];
   readonly enemyShots: EnemyShot[] = [];
-  /** The Phylactery is complete (day 15 won). From then on, death means respawn (section 10.4). */
+  /** The Phylactery is complete (the final day won). From then on, death means respawn (section 10.4). */
   completed = false;
   /** Seconds until the necromancer returns after dying post-completion; 0 while alive. */
   respawnTimer = 0;
@@ -205,7 +205,7 @@ export class Game {
     events.on('chunk:generated', ({ chunkX, chunkY }) =>
       this.fields.chunkGenerated(chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE, CHUNK_SIZE),
     );
-    // The Phylactery completes when day 15's day phase ends with it still standing (section 10.4).
+    // The Phylactery completes when the final day's (DAY_CYCLE.winDay) day phase ends with it still standing (section 10.4).
     events.on('phase:dusk', ({ day }) => {
       if (day === DAY_CYCLE.winDay) this.complete();
     });
@@ -218,7 +218,7 @@ export class Game {
     return this.respawnTimer > 0;
   }
 
-  /** Seconds left in day 15's completion countdown, or undefined outside it. */
+  /** Seconds left in the final day's completion countdown, or undefined outside it. */
   completionRemaining(): number | undefined {
     const s = this.cycle.state;
     if (this.completed || s.day !== DAY_CYCLE.winDay || s.phase !== 'day') return undefined;
@@ -344,6 +344,7 @@ export class Game {
     this.buildings.place(building.id, fp);
     this.noSpawn.add(fp, def.noSpawnRadius);
     this.fields.markAllDirty();
+    if (kind === 'altar') this.updateCapBonus();
     this.events.emit('building:placed', { id: building.id, kind });
     return building;
   }
@@ -370,6 +371,36 @@ export class Game {
     this.buildings.remove(building.footprint);
     this.noSpawn.remove(building.footprint, building.def.noSpawnRadius);
     this.fields.markAllDirty();
+    if (building.kind === 'altar') this.updateCapBonus();
+  }
+
+  /** Every standing Altar raises every resource cap (section 9.1). */
+  private updateCapBonus(): void {
+    let altars = 0;
+    for (const b of this.buildingsById.values()) if (b.kind === 'altar') altars++;
+    this.resources.capBonus = altars * ALTAR.capBonus;
+  }
+
+  /**
+   * Grave Lantern aura (section 10.2): free, slow healing for the player and repair for every
+   * building and the Phylactery in reach of any Lantern. Several Lanterns do not stack.
+   */
+  private updateLanternAura(dt: number): void {
+    const lanterns: Point[] = [];
+    for (const b of this.buildingsById.values()) if (b.kind === 'lantern') lanterns.push(footprintCenter(b.footprint));
+    if (lanterns.length === 0) return;
+    const r = LANTERN.auraRadius;
+    const reaches = (fp: Footprint) => lanterns.some((c) => distanceToFootprint(c.x, c.y, fp) <= r);
+    const p = this.player;
+    if (!this.playerDead && p.hp < p.maxHp && lanterns.some((c) => Math.hypot(c.x - p.x, c.y - p.y) <= r)) {
+      p.hp = Math.min(p.maxHp, p.hp + LANTERN.healRate * dt);
+    }
+    const repair = (t: { hp: number; maxHp: number }) => {
+      t.hp = Math.min(t.maxHp, t.hp + LANTERN.repairRate * dt);
+    };
+    for (const b of this.buildingsById.values()) if (b.hp < b.maxHp && reaches(b.footprint)) repair(b);
+    const ph = this.phylactery;
+    if (ph.hp > 0 && ph.hp < ph.maxHp && reaches(ph.footprint)) repair(ph);
   }
 
   private destroyBuilding(building: Building): void {
@@ -587,6 +618,7 @@ export class Game {
       if (command.mend) this.castMend();
       this.updateHarvest(dt, command.harvest ?? false);
     }
+    this.updateLanternAura(dt);
     this.expireCorpses();
     this.generateChunks();
 

@@ -53,12 +53,12 @@ export const BUILDINGS: Readonly<Record<BuildingKind, BuildingDef>> = {
   altar: {
     kind: 'altar', name: 'Altar', w: 2, h: 2, cost: { flesh: 10, ichor: 10 }, hp: 150,
     noSpawnRadius: DEFAULT_NO_SPAWN_RADIUS, playerPassable: false, color: '#8a3b4b', label: 'ALTAR',
-    description: 'Crafting station. +4 mana regen within 5 tiles.',
+    description: 'Crafting. +4 mana regen nearby. +50 to every resource cap.',
   },
   lantern: {
     kind: 'lantern', name: 'Grave Lantern', w: 1, h: 1, cost: { bone: 3, flesh: 2 }, hp: 40,
     noSpawnRadius: DEFAULT_NO_SPAWN_RADIUS, playerPassable: false, color: '#d9b44a', label: 'L',
-    description: 'Lights 4 tiles around it at night.',
+    description: 'Night light. Slow, free heal and repair within 4 tiles.',
   },
 };
 
@@ -106,6 +106,8 @@ export const ALTAR = {
   /** Extra mana per second while the player is within `auraRadius` tiles of the Altar's center. */
   manaRegenAura: 4,
   auraRadius: 5,
+  /** Each standing Altar adds this to every resource cap (stacks). */
+  capBonus: 50,
 } as const;
 
 export const LANTERN = {
@@ -113,6 +115,16 @@ export const LANTERN = {
   lightRadius: 4,
   /** Wraith targeting weight (M9). */
   aggroWeight: 2,
+  /**
+   * Heal and repair aura, always on. Reaches the player (center within `auraRadius` of the
+   * Lantern's center) and every building and the Phylactery whose footprint is within it.
+   * Free, and does not stack: one Lantern or five, the rate is the same.
+   */
+  auraRadius: 4,
+  /** Player HP per second. */
+  healRate: 1,
+  /** Building HP per second. */
+  repairRate: 1,
 } as const;
 
 export const STARTING_BASE = {

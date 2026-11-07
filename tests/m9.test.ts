@@ -5,6 +5,9 @@ import { Game, type PlayerCommand } from '../src/game';
 import { formatCountdown } from '../src/ui/hud';
 import { Warnings } from '../src/ui/warnings';
 import { cycleStateAt } from '../src/time/dayCycle';
+import { DAY_CYCLE } from '../src/data/time';
+
+const WIN = DAY_CYCLE.winDay;
 
 const DT = 1 / 60;
 const still = { up: false, down: false, left: false, right: false };
@@ -100,37 +103,37 @@ describe('Wraiths', () => {
 });
 
 describe('completion and respawn', () => {
-  function onDay15(): { game: Game; events: EventBus<GameEvents> } {
+  function onFinalDay(): { game: Game; events: EventBus<GameEvents> } {
     const r = arena();
-    r.game.cycle.jumpToDay(15);
+    r.game.cycle.jumpToDay(WIN);
     return r;
   }
 
-  it('counts down 150 s on day 15 and wins when the day phase ends', () => {
-    const { game, events } = onDay15();
+  it('counts down 75 s on day 7 and wins when the day phase ends', () => {
+    const { game, events } = onFinalDay();
     const won: number[] = [];
     events.on('run:won', (s) => won.push(s.day));
     game.godMode = true;
-    expect(game.completionRemaining()).toBeCloseTo(150);
-    ticks(game, 100);
-    expect(game.completionRemaining()).toBeCloseTo(50, 0);
+    expect(game.completionRemaining()).toBeCloseTo(75);
+    ticks(game, 50);
+    expect(game.completionRemaining()).toBeCloseTo(25, 0);
     expect(game.completed).toBe(false);
-    ticks(game, 51);
+    ticks(game, 26);
     expect(game.completed).toBe(true);
-    expect(won).toEqual([15]);
+    expect(won).toEqual([WIN]);
     expect(game.outcome).toBeUndefined();
     expect(game.completionRemaining()).toBeUndefined();
   });
 
   it('does not count down on other days', () => {
     const { game } = arena();
-    game.cycle.jumpToDay(14);
+    game.cycle.jumpToDay(WIN - 1);
     expect(game.completionRemaining()).toBeUndefined();
   });
 
   it('after completion, death costs the Phylactery 30 HP and respawns the player at (0, 2) after 3 s', () => {
-    const { game, events } = onDay15();
-    ticks(game, 151);
+    const { game, events } = onFinalDay();
+    ticks(game, 76);
     expect(game.completed).toBe(true);
     const respawned: number[] = [];
     events.on('player:respawned', () => respawned.push(game.cycle.elapsed));
@@ -156,8 +159,8 @@ describe('completion and respawn', () => {
   });
 
   it('enemies ignore a dead necromancer', () => {
-    const { game } = onDay15();
-    ticks(game, 151);
+    const { game } = onFinalDay();
+    ticks(game, 76);
     game.player.hp = 1;
     const imp = game.spawnEnemy('imp', game.player.x + 1.5, game.player.y, false);
     game.tick(DT, cmd());
@@ -167,8 +170,8 @@ describe('completion and respawn', () => {
   });
 
   it('a death that drains the Phylactery to 0 ends the run', () => {
-    const { game } = onDay15();
-    ticks(game, 151);
+    const { game } = onFinalDay();
+    ticks(game, 76);
     game.phylactery.hp = 20;
     game.player.hp = 1;
     game.spawnEnemy('brute', game.player.x + 1.5, game.player.y, false);
@@ -204,9 +207,9 @@ describe('warnings', () => {
     const events = new EventBus<GameEvents>();
     const w = new Warnings();
     w.attach(events);
-    run(events, w, 130, 142);
+    run(events, w, 60, 67);
     expect(w.banners.map((b) => b.text)).toEqual(['Dusk approaching']);
-    run(events, w, 225, 232);
+    run(events, w, 110, 117);
     expect(w.banners.map((b) => b.text)).toEqual(['Dawn approaching. The swarm returns']);
   });
 
@@ -237,12 +240,12 @@ describe('warnings', () => {
     expect(critical()).toBe(1);
   });
 
-  it('announce day 15 and completion', () => {
+  it('announce the final day and completion', () => {
     const events = new EventBus<GameEvents>();
     const w = new Warnings();
     w.attach(events);
-    events.emit('phase:day', { day: 15 });
-    events.emit('run:won', { day: 15, kills: 0, corpsesHarvested: 0, score: 0 });
-    expect(w.banners.map((b) => b.text)).toEqual(['Day 15. The binding begins', 'The Phylactery is complete']);
+    events.emit('phase:day', { day: WIN });
+    events.emit('run:won', { day: WIN, kills: 0, corpsesHarvested: 0, score: 0 });
+    expect(w.banners.map((b) => b.text)).toEqual(['Day 7. The binding begins', 'The Phylactery is complete']);
   });
 });

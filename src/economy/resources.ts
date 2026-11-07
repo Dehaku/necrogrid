@@ -2,21 +2,31 @@
 
 import { RESOURCE_CAPS, RESOURCE_ORDER, RESOURCES, type ResourceAmounts, type ResourceId } from '../data/resources';
 
+/** The base cap, before any Altar bonus. */
 export function resourceCap(id: ResourceId): number {
   return RESOURCE_CAPS[RESOURCES[id].tier];
 }
 
 export class Resources {
   private readonly amounts: Record<ResourceId, number> = { bone: 0, flesh: 0, ichor: 0, soulShard: 0 };
+  /** Added to every cap (Altars). */
+  capBonus = 0;
+
+  cap(id: ResourceId): number {
+    return resourceCap(id) + this.capBonus;
+  }
 
   get(id: ResourceId): number {
     return this.amounts[id];
   }
 
-  /** Adds up to the cap; the rest is lost. Returns how much was actually added. */
+  /**
+   * Adds up to the cap; the rest is lost. Returns how much was actually added. An amount
+   * already over the cap (an Altar was lost) is kept, it just cannot grow.
+   */
   add(id: ResourceId, amount: number): number {
     const before = this.amounts[id];
-    this.amounts[id] = Math.min(resourceCap(id), before + Math.max(0, amount));
+    this.amounts[id] = Math.max(before, Math.min(this.cap(id), before + Math.max(0, amount)));
     return this.amounts[id] - before;
   }
 

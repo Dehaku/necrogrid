@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { hashInts, Rng } from '../src/core/rng';
 import { SPAWN } from '../src/data/spawn';
 import {
+  activeEnemyCap,
   canSpawnAt,
+  dailyGrowth,
   isOffScreen,
   rosterWeights,
   SpawnDirector,
@@ -50,10 +52,36 @@ function run(seconds: number, world: SpawnWorld, seed = 1) {
 }
 
 describe('spawn rate', () => {
-  it('ramps 0.1 per day from 1.0 and caps at 3.0', () => {
+  it('grows 25% of day 1 per day for day and night alike, capped at ×4', () => {
+    expect(dailyGrowth(1)).toBe(1);
+    expect(dailyGrowth(7)).toBeCloseTo(2.5);
+    expect(dailyGrowth(13)).toBeCloseTo(4);
+    expect(dailyGrowth(40)).toBeCloseTo(4);
     expect(spawnRate(1, 0)).toBeCloseTo(1.0);
-    expect(spawnRate(15, 0)).toBeCloseTo(2.4);
-    expect(spawnRate(40, 0)).toBeCloseTo(3.0);
+    expect(spawnRate(7, 0)).toBeCloseTo(2.5);
+    expect(spawnRate(7, 1)).toBeCloseTo(0.5);
+    expect(spawnRate(40, 0)).toBeCloseTo(4.0);
+  });
+
+  it('raises the active enemy cap 20 per day from 150, up to 300', () => {
+    expect(activeEnemyCap(1)).toBe(150);
+    expect(activeEnemyCap(7)).toBe(270);
+    expect(activeEnemyCap(20)).toBe(300);
+  });
+
+  it('spawns more of every enemy type on later days', () => {
+    const count = (day: number, nightBlend: number) => {
+      const { world } = makeWorld({ day, nightBlend });
+      const tally: Record<string, number> = {};
+      for (const r of run(400, world, 4).all) tally[r.type] = (tally[r.type] ?? 0) + 1;
+      return tally;
+    };
+    const day3 = count(3, 0);
+    const day6 = count(6, 0);
+    for (const type of ['imp', 'shambler', 'brute']) expect(day6[type]!).toBeGreaterThan(day3[type]!);
+    const night3 = count(3, 1);
+    const night6 = count(6, 1);
+    for (const type of ['shambler', 'brute', 'wraith']) expect(night6[type]!).toBeGreaterThan(night3[type]!);
   });
 
   it('is 0.2 at night and blends linearly at dusk and dawn', () => {
@@ -71,16 +99,23 @@ describe('spawn rate', () => {
 
 describe('spawn weights', () => {
   it('uses the day roster by day and the night roster at night', () => {
-    expect(rosterWeights(1, 0)).toEqual([
+    expect(rosterWeights(3, 0)).toEqual([
       { type: 'imp', weight: 60 },
       { type: 'shambler', weight: 30 },
       { type: 'brute', weight: 8 },
     ]);
-    expect(rosterWeights(1, 1)).toEqual([
+    expect(rosterWeights(3, 1)).toEqual([
       { type: 'shambler', weight: 40 },
       { type: 'brute', weight: 20 },
       { type: 'wraith', weight: 40 },
     ]);
+  });
+
+  it('adds Brutes from day 3, day and night', () => {
+    expect(rosterWeights(2, 0).some((w) => w.type === 'brute')).toBe(false);
+    expect(rosterWeights(2, 1).some((w) => w.type === 'brute')).toBe(false);
+    expect(rosterWeights(3, 0)).toContainEqual({ type: 'brute', weight: 8 });
+    expect(rosterWeights(3, 1)).toContainEqual({ type: 'brute', weight: 20 });
   });
 
   it('adds Hellhounds by day from day 5, and never at night', () => {
@@ -96,7 +131,7 @@ describe('spawn weights', () => {
   });
 
   it('produces the day mix (imps about 61%)', () => {
-    const { world } = makeWorld();
+    const { world } = makeWorld({ day: 3 });
     const { all } = run(1500, world, 7);
     const imps = all.filter((r) => r.type === 'imp').length / all.length;
     expect(imps).toBeGreaterThan(0.56);

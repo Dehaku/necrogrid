@@ -4,13 +4,13 @@
 export const DAY_CYCLE = {
   /** In cycle order. The run starts at the beginning of the first phase on day 1. */
   phases: [
-    { id: 'day', length: 150, label: 'Day', ringColor: '#e8b94a' },
+    { id: 'day', length: 75, label: 'Day', ringColor: '#e8b94a' },
     { id: 'dusk', length: 10, label: 'Dusk', ringColor: '#d9673b' },
-    { id: 'night', length: 80, label: 'Night', ringColor: '#2b2f6b' },
+    { id: 'night', length: 40, label: 'Night', ringColor: '#2b2f6b' },
     { id: 'dawn', length: 10, label: 'Dawn', ringColor: '#d98aa6' },
   ],
-  /** The Phylactery completes on this day (section 10.4). Shown as "Day N / 15". */
-  winDay: 15,
+  /** The Phylactery completes when this day's day phase ends (section 10.4). Shown as "Day N / 7". */
+  winDay: 7,
 } as const;
 
 export type PhaseId = (typeof DAY_CYCLE.phases)[number]['id'];

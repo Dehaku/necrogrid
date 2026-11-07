@@ -121,9 +121,10 @@ describe('build ghost info', () => {
     }
   });
 
-  it('shows reach circles for the Totem (6) and Corpse Collector (3) only', () => {
+  it('shows reach circles for the Totem (6), Corpse Collector (3), and Grave Lantern aura (4) only', () => {
     expect(choiceInfo('totem').range).toBe(6);
     expect(choiceInfo('collector').range).toBe(3);
+    expect(choiceInfo('lantern').range).toBe(4);
     expect(choiceInfo('wall').range).toBeUndefined();
   });
 });
