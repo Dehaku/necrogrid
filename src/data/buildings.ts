@@ -102,7 +102,7 @@ export const ALTAR = {
 
 export const LANTERN = {
   /** Each Lantern lights this many tiles around itself at night. */
-  lightRadius: 3,
+  lightRadius: 4,
   /** Wraith targeting weight (M9). */
   aggroWeight: 2,
 } as const;
@@ -112,6 +112,8 @@ export const STARTING_BASE = {
   wallChance: 0.6,
   /** The wall ring is this many tiles out from the Phylactery's footprint. */
   wallRingDistance: 2,
+  /** The starting Totem goes on a random free tile of the ring one tile past the walls. */
+  totemRingDistance: 3,
 } as const;
 
 export const PHYLACTERY = {

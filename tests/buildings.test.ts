@@ -53,16 +53,20 @@ describe('starting base', () => {
     for (const t of ring) expect(Math.max(Math.abs(t.x), Math.abs(t.y))).toBe(3);
   });
 
-  it('always leaves at least one gap, places exactly one Totem on the inner ring, and varies by seed', () => {
+  it('always leaves at least one gap, places exactly one Totem one tile past the walls, and varies by seed', () => {
     const patterns = new Set<string>();
+    const outer = ringAround(fp, 3);
+    expect(outer).toHaveLength(32);
+    const outerKeys = new Set(outer.map(key));
     const inner = new Set(phylacteryRingTiles(fp).map(key));
     for (let seed = 1; seed <= 300; seed++) {
       const plan = planStartingBase(new Rng(seed), fp, { x: 0, y: 2 }, () => true);
       expect(plan.walls.length).toBeLessThan(24);
       expect(plan.walls.every((w) => ring.some((r) => r.x === w.x && r.y === w.y))).toBe(true);
       expect(plan.totem).toBeDefined();
-      expect(inner.has(key(plan.totem!))).toBe(true);
-      expect(key(plan.totem!)).not.toBe('0,2');
+      expect(outerKeys.has(key(plan.totem!))).toBe(true);
+      expect(Math.max(Math.abs(plan.totem!.x), Math.abs(plan.totem!.y))).toBe(4);
+      expect(inner.has(key(plan.totem!))).toBe(false);
       patterns.add(plan.walls.map(key).sort().join('|'));
     }
     expect(patterns.size).toBeGreaterThan(290);

@@ -60,7 +60,7 @@ export function drawHotbar(ctx: CanvasRenderingContext2D, mode: BuildMode, canAf
   ctx.font = '600 12px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  ctx.fillText(`BUILD · ${choiceInfo(mode.choice).name} · LMB place (hold to paint) · RMB remove · B exit`, VIEW_WIDTH / 2, top - 6);
+  ctx.fillText(`BUILD · ${choiceInfo(mode.choice).name} · LMB place (hold to paint) · RMB remove · B / Esc / Tab / E exit`, VIEW_WIDTH / 2, top - 6);
 
   HOTBAR.forEach((choice, i) => {
     const info = choiceInfo(choice);

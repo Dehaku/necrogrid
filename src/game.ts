@@ -177,7 +177,7 @@ export class Game {
     if (options.startingBase ?? true) this.buildStartingBase();
   }
 
-  /** Section 10.5: free walls on the ring 2 tiles out (60% each, never closed), then one Totem. */
+  /** Section 10.5: free walls on the ring 2 tiles out (60% each, never closed), then one Totem 3 tiles out. */
   private buildStartingBase(): void {
     const plan = planStartingBase(
       this.buildRng,
@@ -186,7 +186,7 @@ export class Game {
       (t) => placementProblem({ x: t.x, y: t.y, w: 1, h: 1 }, this.placementWorld(), true) === undefined,
     );
     for (const w of plan.walls) this.placeBuilding('wall', w.x, w.y, { free: true });
-    if (plan.totem) this.placeBuilding('totem', plan.totem.x, plan.totem.y, { free: true, ignoreNoBuildZone: true });
+    if (plan.totem) this.placeBuilding('totem', plan.totem.x, plan.totem.y, { free: true });
   }
 
   private placementWorld(): PlacementWorld {

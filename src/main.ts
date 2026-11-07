@@ -222,6 +222,12 @@ input.interceptPress = (press) => {
     game.spawnEnemy(settings.spawnType, at.x, at.y, settings.spawnElite);
     return true;
   }
+  // In build mode, Esc, Tab, and E (as well as B) just leave build mode.
+  if (buildMode.active && press.key !== undefined && (keys.pause.has(press.key) || keys.equipment.has(press.key) || keys.harvest.includes(press.key))) {
+    buildMode.active = false;
+    lastPaintKey = undefined;
+    return true;
+  }
   if (press.key !== undefined && keys.pause.has(press.key) && runActive()) {
     openPauseScreen();
     return true;

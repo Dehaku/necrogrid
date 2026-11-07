@@ -1,5 +1,5 @@
 // The free starting defense: random walls on the ring 2 tiles out, then one Totem on the
-// inner ring. GAME_DESIGN.md section 10.5.
+// ring 3 tiles out. GAME_DESIGN.md section 10.5.
 
 import { STARTING_BASE } from '../data/buildings';
 import type { Point } from '../core/input';
@@ -21,7 +21,8 @@ export interface StartingBasePlan {
 /**
  * Plans the starting base. Each wall-ring tile rolls `wallChance` (in a fixed order) and must
  * pass `canPlace`. If every tile got a wall, one random wall is removed so the player is never
- * sealed in. Then the Totem goes on a random free inner-ring tile that is not the player's.
+ * sealed in. Then the Totem goes on a random free tile of the ring one tile past the walls,
+ * so it covers the approach from outside.
  */
 export function planStartingBase(
   rng: Rng,
@@ -33,9 +34,9 @@ export function planStartingBase(
   const walls = ring.filter((tile) => rng.chance(STARTING_BASE.wallChance) && canPlace(tile));
   if (walls.length === ring.length) walls.splice(rng.int(0, walls.length - 1), 1);
 
-  const inner = phylacteryRingTiles(phylactery).filter(
+  const outer = ringAround(phylactery, STARTING_BASE.totemRingDistance).filter(
     (t) => !(t.x === playerTile.x && t.y === playerTile.y) && canPlace(t),
   );
-  const totem = inner.length > 0 ? rng.pick(inner) : undefined;
+  const totem = outer.length > 0 ? rng.pick(outer) : undefined;
   return { walls, totem };
 }

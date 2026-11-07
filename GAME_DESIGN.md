@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.14. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.15. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -27,6 +27,7 @@
 | 0.12 | Enemy attack swipes: a short crescent swipe toward what a melee enemy hits, red (orange for elites), built in M4 (section 7). |
 | 0.13 | Swipe reworked: the bright edge leads and the fade trails behind. Player-made Marsh (10 Flesh, 1 Ichor) added to the build list, with open questions (decision 36). |
 | 0.14 | Marsh slows ground demons too. Fill (5 Bone, 5 Flesh) turns any marsh into dirt. No refunds; marsh stays out of the no-build zone. Hotbar keys 1–8. |
+| 0.15 | Starting Totem moved to the ring one tile past the walls. Esc, Tab, and E also leave build mode. Grave Lantern light 3 → 4 tiles. |
 
 ---
 
@@ -465,7 +466,7 @@ The loot table lives in `src/data/loot.ts`, keyed by corpse size. Elite corpses 
 | 3 | **Bone Totem** | 1×1 | 10 Bone, 5 Ichor | 80 | Turret. Fires a bolt at the nearest enemy within 6 tiles every 1.0 s, damage 8 |
 | 4 | **Corpse Collector** | 1×1 | 8 Bone, 2 Flesh | 80 | Instantly harvests the nearest corpse within 3 tiles, then waits a random 3–5 s cooldown (section 10.2.1) |
 | 5 | **Altar** | 2×2 | 10 Flesh, 10 Ichor | 150 | Crafting station. +4 mana regen aura, radius 5 tiles |
-| 6 | **Grave Lantern** | 1×1 | 3 Bone, 2 Flesh | 40 | Light radius +3 tiles at night. Draws Wraith targeting (decoy, `aggroWeight = 2`) |
+| 6 | **Grave Lantern** | 1×1 | 3 Bone, 2 Flesh | 40 | Lights a 4-tile radius around itself at night. Draws Wraith targeting (decoy, `aggroWeight = 2`) |
 | 7 | **Marsh** | 1×1 | 10 Flesh, 1 Ichor | — | Terrain edit, not a building: turns a grass or dirt tile into `marsh`, which slows the player and ground demons by 50% |
 | 8 | **Fill** | 1×1 | 5 Bone, 5 Flesh | — | Terrain edit: turns any `marsh` tile, wild or player-made, into `dirt` (which is buildable) |
 
@@ -483,9 +484,9 @@ Totems never target a Wraith that is still fading in.
 - After each harvest it rolls a new cooldown, uniformly between 3 and 5 s, from the seeded RNG. A newly placed Collector also starts with a random cooldown. This keeps groups of Collectors from firing in sync.
 - While no corpse is in range, it checks again each tick.
 
-**Build mode controls:** B toggles build mode (it does not pause). Keys 1–8 pick from the hotbar. Left click places at the ghost; holding it and dragging places on every new tile the cursor crosses (painting walls or marsh). Right click removes the building under the cursor. While build mode is on, the mouse builds instead of casting Bolt and Chain; Q, E, and R still work. The ghost is red with the reason (including "Not enough resources") when the choice cannot go there.
+**Build mode controls:** B toggles build mode (it does not pause). Esc, Tab, and E also leave build mode (and do only that: no pause screen, equipment screen, or harvest). Keys 1–8 pick from the hotbar. Left click places at the ghost; holding it and dragging places on every new tile the cursor crosses (painting walls or marsh). Right click removes the building under the cursor. While build mode is on, the mouse builds instead of casting Bolt and Chain; Q, E, and R still work. The ghost is red with the reason (including "Not enough resources") when the choice cannot go there.
 
-**Grave Lantern light:** each Lantern lights a 3-tile radius around itself at night, in addition to the player's own light.
+**Grave Lantern light:** each Lantern lights a 4-tile radius around itself at night, in addition to the player's own light.
 
 **Building rules:**
 - Buildings have HP. When HP reaches 0, the building is destroyed and drops 50% of its cost as resources (each resource rounded down), straight into the player's counters.
@@ -525,7 +526,7 @@ The Phylactery is the binding the necromancer is building. It is the reason the 
 |---|---|
 | Footprint | 3×3, centered on world tile (0, 0) |
 | Placement | Pre-placed at the start of the run. The player cannot build, move, remove, or refund it |
-| No-build zone | The 16 tiles bordering the footprint (the inner ring, section 10.5). The player cannot build there, so the respawn tile is always free. Only the starting Totem may stand there |
+| No-build zone | The 16 tiles bordering the footprint (the inner ring, section 10.5). The player cannot build there, so the respawn tile is always free. Nothing is built there at the start either |
 | HP | 600 |
 | Repair | Hold R within 2 tiles. Costs 1 Bone per 10 HP (it has no build cost to scale from) |
 | Drops on destruction | None |
@@ -549,7 +550,7 @@ Every run starts with a small free defense, generated from the run's seed so it 
 1. Place the Phylactery at the center.
 2. Place the player on the inner ring (below), directly south of the Phylactery at tile (0, 2).
 3. **Walls:** the **wall ring** is the 24 tiles exactly 2 tiles out from the Phylactery footprint (the border of the 7×7 square centered on it). Each wall-ring tile gets a Bone Wall with a 60% chance (`startingWallChance = 0.6`). Each wall passes the normal footprint check. If every tile got a wall, one random wall is removed so the player is never sealed in.
-4. **Totem:** after the walls are placed, one Bone Totem is placed on a random free tile of the **inner ring**: the 16 tiles directly around the footprint (the border of the 5×5 square). It is guaranteed: the inner ring is always clear (section 4.1), and one tile is taken by the player. The inner ring is the no-build zone (section 10.4). This Totem is the only building allowed there, and once destroyed it cannot be rebuilt in the zone.
+4. **Totem:** after the walls are placed, one Bone Totem is placed on a random free tile of the **totem ring**: the 32 tiles exactly 3 tiles out from the footprint (the border of the 9×9 square), one tile past the walls, so it covers the approach. It is guaranteed: that ring is inside the clear area (section 4.1), so every tile is buildable.
 
 Gaps in the wall ring are expected. They give enemies a route in, so the first few days are about filling and reinforcing the ring, and adding doors.
 
@@ -851,6 +852,7 @@ Record every balance change here so intent is not lost.
 | v0.8 | Elite loot | Rolled twice | 4× amounts + 1 Soul Shard | Elites should feel worth hunting |
 | v0.10 | Respawn invulnerability | 1.5 s | 3 s | Respawning into a crowd |
 | v0.10 | Chunk generation radius | 1.5 × view | 2 × view | Spawn rings reach 40 tiles out |
+| v0.15 | Grave Lantern light radius | 3 tiles | 4 tiles | Playtest feedback |
 
 ## 17. Non-Goals (v1)
 
