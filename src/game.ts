@@ -1,7 +1,7 @@
 // The simulation for one run: world, time, player, Phylactery, enemies, and spawning.
 // main.ts owns the browser side (canvas, input, loop) and calls tick() at 60 Hz.
 
-import { ALTAR, BUILD_RULES, BUILDINGS, COLLECTOR, PHYLACTERY, STARTING_BASE, TERRAIN_EDITS, TOTEM, type BuildingKind } from './data/buildings';
+import { ALTAR, BUILD_RULES, BUILDINGS, COLLECTOR, PHYLACTERY, TERRAIN_EDITS, TOTEM, type BuildingKind } from './data/buildings';
 import { nearestWithin, totemBolt } from './combat/totem';
 import { createBuilding, footprintCenter, placementProblem, shareOf, type Building, type PlacementWorld } from './entities/building';
 import { planStartingBase } from './entities/startingBase';
@@ -186,7 +186,7 @@ export class Game {
     if (options.startingBase ?? true) this.buildStartingBase();
   }
 
-  /** Section 10.5: free walls on the ring 2 tiles out (60% each, never closed), then one walk-through Totem on the inner ring. */
+  /** Section 10.5: free walls on the ring 2 tiles out (60% each), then a Totem and a Collector on that ring (never fully closed). */
   private buildStartingBase(): void {
     const plan = planStartingBase(
       this.buildRng,
@@ -195,13 +195,9 @@ export class Game {
       (t) => placementProblem({ x: t.x, y: t.y, w: 1, h: 1 }, this.placementWorld(), true) === undefined,
     );
     for (const w of plan.walls) this.placeBuilding('wall', w.x, w.y, { free: true });
-    if (plan.totem) {
-      this.placeBuilding('totem', plan.totem.x, plan.totem.y, {
-        free: true,
-        ignoreNoBuildZone: true,
-        playerPassable: STARTING_BASE.totemPlayerPassable,
-      });
-    }
+    // Placed after the walls; the plan already gave them their tiles over any wall.
+    if (plan.totem) this.placeBuilding('totem', plan.totem.x, plan.totem.y, { free: true });
+    if (plan.collector) this.placeBuilding('collector', plan.collector.x, plan.collector.y, { free: true });
   }
 
   private placementWorld(): PlacementWorld {

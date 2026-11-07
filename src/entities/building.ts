@@ -16,7 +16,7 @@ export interface Building {
   readonly maxHp: number;
   /** Starting buildings are free: no refund and no drop. */
   readonly free: boolean;
-  /** The player can walk through it (Bone Doors, and the starting Totem). Enemies never can. */
+  /** The player can walk through it (Bone Doors). Enemies never can. */
   readonly playerPassable: boolean;
   /** Seconds until it can act again (Totem shot, Collector harvest). */
   cooldown: number;

@@ -120,8 +120,6 @@ export const STARTING_BASE = {
   wallChance: 0.6,
   /** The wall ring is this many tiles out from the Phylactery's footprint. */
   wallRingDistance: 2,
-  /** The starting Totem can be walked through by the player (not by enemies), like a Bone Door. */
-  totemPlayerPassable: true,
 } as const;
 
 export const PHYLACTERY = {

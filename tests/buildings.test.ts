@@ -3,7 +3,6 @@ import { EventBus, type GameEvents } from '../src/core/events';
 import { Rng } from '../src/core/rng';
 import { BUILDINGS, PHYLACTERY } from '../src/data/buildings';
 import { TILE } from '../src/data/terrain';
-import { phylacteryRingTiles } from '../src/entities/phylactery';
 import { planStartingBase, ringAround } from '../src/entities/startingBase';
 import { repairCostToFull, stepRepair, type Repairable } from '../src/economy/repair';
 import { Game, type PlayerCommand } from '../src/game';
@@ -53,62 +52,48 @@ describe('starting base', () => {
     for (const t of ring) expect(Math.max(Math.abs(t.x), Math.abs(t.y))).toBe(3);
   });
 
-  it('always leaves at least one gap, places exactly one Totem on the inner ring, and varies by seed', () => {
+  it('puts the Totem and Collector on the wall ring, never under a wall, always leaves a gap, and varies by seed', () => {
     const patterns = new Set<string>();
-    const inner = new Set(phylacteryRingTiles(fp).map(key));
+    const ringKeys = new Set(ring.map(key));
     for (let seed = 1; seed <= 300; seed++) {
       const plan = planStartingBase(new Rng(seed), fp, { x: 0, y: 2 }, () => true);
-      expect(plan.walls.length).toBeLessThan(24);
-      expect(plan.walls.every((w) => ring.some((r) => r.x === w.x && r.y === w.y))).toBe(true);
       expect(plan.totem).toBeDefined();
-      expect(inner.has(key(plan.totem!))).toBe(true);
-      expect(key(plan.totem!)).not.toBe('0,2');
-      patterns.add(plan.walls.map(key).sort().join('|'));
+      expect(plan.collector).toBeDefined();
+      expect(ringKeys.has(key(plan.totem!))).toBe(true);
+      expect(ringKeys.has(key(plan.collector!))).toBe(true);
+      expect(key(plan.totem!)).not.toBe(key(plan.collector!));
+      const wallKeys = new Set(plan.walls.map(key));
+      expect(wallKeys.has(key(plan.totem!))).toBe(false);
+      expect(wallKeys.has(key(plan.collector!))).toBe(false);
+      expect(plan.walls.every((w) => ringKeys.has(key(w)))).toBe(true);
+      // At least one ring tile is left open.
+      expect(plan.walls.length + 2).toBeLessThan(24);
+      patterns.add([...wallKeys].sort().join('|') + '#' + key(plan.totem!) + '#' + key(plan.collector!));
     }
     expect(patterns.size).toBeGreaterThan(290);
   });
 
-  it('removes one wall when every tile rolled a wall', () => {
+  it('gives the Totem and Collector priority over walls, and still leaves a gap when every tile rolled a wall', () => {
     const always = { chance: () => true, int: () => 0, pick: <T>(a: readonly T[]) => a[0]! } as unknown as Rng;
     const plan = planStartingBase(always, fp, { x: 0, y: 2 }, () => true);
-    expect(plan.walls).toHaveLength(23);
+    // 24 walls rolled; the Totem and Collector took two of their tiles; one more wall was dropped.
+    expect(plan.walls).toHaveLength(21);
+    expect(plan.totem).toEqual(ring[0]);
+    expect(plan.collector).toEqual(ring[1]);
   });
 
-  it('lets the player walk through the starting Totem, but not enemies', () => {
-    const game = new Game(1, new EventBus<GameEvents>());
-    const totem = [...game.buildingsById.values()].find((b) => b.kind === 'totem')!;
-    expect(totem.playerPassable).toBe(true);
-    expect(Math.max(Math.abs(totem.footprint.x), Math.abs(totem.footprint.y))).toBe(2);
-    // Walk along the inner ring (all free tiles) straight through the Totem's tile.
-    game.director.paused = true;
-    const tx = totem.footprint.x;
-    const ty = totem.footprint.y;
-    const alongX = Math.abs(ty) === 2; // on the top or bottom edge of the ring
-    const from = alongX ? (tx > -2 ? -1 : 1) : ty > -2 ? -1 : 1; // which side to start from
-    game.player.x = game.player.prevX = (alongX ? tx + from : tx) + 0.5;
-    game.player.y = game.player.prevY = (alongX ? ty : ty + from) + 0.5;
-    const dir = -from;
-    const move = alongX ? { ...still, left: dir < 0, right: dir > 0 } : { ...still, up: dir < 0, down: dir > 0 };
-    const startPos = alongX ? game.player.x : game.player.y;
-    ticks(game, 0.6, cmd({ move }));
-    const travelled = Math.abs((alongX ? game.player.x : game.player.y) - startPos);
-    // 0.6 s at 3.75 tiles/s is 2.25 tiles; a solid Totem would stop it after 0.5.
-    expect(travelled).toBeGreaterThan(1.5);
-    // Enemies still treat it as a building (flow fields and collision).
-    expect(game.buildings.has(tx, ty)).toBe(true);
-    // A Totem the player builds is solid as usual.
-    expect(BUILDINGS.totem.playerPassable).toBe(false);
-  });
-
-  it('builds free walls and one free Totem in a real game', () => {
+  it('builds free walls, one solid Totem, and one Collector in a real game', () => {
     for (const seed of [1, 2, 3, 77, 1234]) {
       const game = new Game(seed, new EventBus<GameEvents>());
       const buildings = [...game.buildingsById.values()];
       const totems = buildings.filter((b) => b.kind === 'totem');
+      const collectors = buildings.filter((b) => b.kind === 'collector');
       const walls = buildings.filter((b) => b.kind === 'wall');
       expect(totems).toHaveLength(1);
-      expect(walls.length).toBeGreaterThan(0);
-      expect(walls.length).toBeLessThan(24);
+      expect(collectors).toHaveLength(1);
+      expect(totems[0]!.playerPassable).toBe(false);
+      for (const b of [...totems, ...collectors]) expect(Math.max(Math.abs(b.footprint.x), Math.abs(b.footprint.y))).toBe(3);
+      expect(walls.length + 2).toBeLessThan(24);
       expect(buildings.every((b) => b.free)).toBe(true);
     }
   });

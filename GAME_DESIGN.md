@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.16. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.17. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -29,6 +29,7 @@
 | 0.14 | Marsh slows ground demons too. Fill (5 Bone, 5 Flesh) turns any marsh into dirt. No refunds; marsh stays out of the no-build zone. Hotbar keys 1–8. |
 | 0.15 | Starting Totem moved to the ring one tile past the walls. Esc, Tab, and E also leave build mode. Grave Lantern light 3 → 4 tiles. |
 | 0.16 | Starting Totem back on the inner ring, and the player can walk through it. Build ghost: description line, and reach circles for the Totem and Collector. Gray jagged line when a Collector harvests. Shamblers: no pathfinding, straight at the target with a sway. |
+| 0.17 | Starting base: the Totem (solid again) and a new free Corpse Collector both go on the wall ring, placed after the walls and taking priority over them; the ring is still never fully closed. |
 
 ---
 
@@ -536,7 +537,7 @@ The Phylactery is the binding the necromancer is building. It is the reason the 
 |---|---|
 | Footprint | 3×3, centered on world tile (0, 0) |
 | Placement | Pre-placed at the start of the run. The player cannot build, move, remove, or refund it |
-| No-build zone | The 16 tiles bordering the footprint (the inner ring, section 10.5). The player cannot build there, so the respawn tile is always free. Only the starting Totem stands there, and the player can walk through it |
+| No-build zone | The 16 tiles bordering the footprint (the inner ring, section 10.5). The player cannot build there, so the respawn tile is always free. Nothing is built there at the start either |
 | HP | 600 |
 | Repair | Hold R within 2 tiles. Costs 1 Bone per 10 HP (it has no build cost to scale from) |
 | Drops on destruction | None |
@@ -558,9 +559,10 @@ The Phylactery is the binding the necromancer is building. It is the reason the 
 Every run starts with a small free defense, generated from the run's seed so it differs each time. Setup order:
 
 1. Place the Phylactery at the center.
-2. Place the player on the inner ring (below), directly south of the Phylactery at tile (0, 2).
-3. **Walls:** the **wall ring** is the 24 tiles exactly 2 tiles out from the Phylactery footprint (the border of the 7×7 square centered on it). Each wall-ring tile gets a Bone Wall with a 60% chance (`startingWallChance = 0.6`). Each wall passes the normal footprint check. If every tile got a wall, one random wall is removed so the player is never sealed in.
-4. **Totem:** after the walls are placed, one Bone Totem is placed on a random free tile of the **inner ring**: the 16 tiles directly around the footprint (the border of the 5×5 square), never the player's tile (0, 2). It is guaranteed: the inner ring is always clear (section 4.1). The inner ring is the no-build zone (section 10.4); this Totem is the only building allowed there. The player can walk through it like a Bone Door; enemies cannot.
+2. Place the player directly south of the Phylactery at tile (0, 2), on the inner ring (the 16 tiles bordering the footprint, which is the no-build zone, section 10.4).
+3. **Walls:** the **wall ring** is the 24 tiles exactly 2 tiles out from the Phylactery footprint (the border of the 7×7 square centered on it). Each wall-ring tile gets a Bone Wall with a 60% chance (`startingWallChance = 0.6`), if it passes the normal footprint check.
+4. **Totem and Corpse Collector:** after the walls, one free Bone Totem and then one free Corpse Collector each take a random wall-ring tile (different tiles). They take priority: a wall rolled on their tile is not built. Both are solid, like any building.
+5. **Never sealed:** if the wall ring is now completely filled (walls, Totem, and Collector), one random wall is removed, so the player is never sealed in.
 
 Gaps in the wall ring are expected. They give enemies a route in, so the first few days are about filling and reinforcing the ring, and adding doors.
 
@@ -893,7 +895,7 @@ Record every balance change here so intent is not lost.
 
 **Confirmed (v0.5):**
 10. **Spawning:** Lower rates (section 6). Spawn locations were replaced in v0.10 (decision 33).
-11. **Starting base:** Random walls on the ring 2 tiles out, then one guaranteed Totem (section 10.5).
+11. **Starting base:** Random walls on the ring 2 tiles out, then a guaranteed Totem and Corpse Collector on that ring (section 10.5, revised in v0.17).
 12. **Mana pressure:** Solved through gear progression, not base stats (section 10.3).
 13. **Corpse Collector** replaces the Ossuary (section 10.2.1).
 14. **Map:** Procedural chunks generated beyond view (radius raised to 2 × view in v0.10), follow camera, rarer rock (section 4).
