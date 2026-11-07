@@ -79,7 +79,15 @@ describe('spawn weights', () => {
     expect(rosterWeights(1, 1)).toEqual([
       { type: 'shambler', weight: 40 },
       { type: 'brute', weight: 20 },
+      { type: 'wraith', weight: 40 },
     ]);
+  });
+
+  it('adds Hellhounds by day from day 5, and never at night', () => {
+    expect(rosterWeights(4, 0).some((w) => w.type === 'hellhound')).toBe(false);
+    expect(rosterWeights(5, 0)).toContainEqual({ type: 'hellhound', weight: 6 });
+    expect(rosterWeights(5, 1).some((w) => w.type === 'hellhound')).toBe(false);
+    expect(rosterWeights(5, 0).some((w) => w.type === 'wraith')).toBe(false);
   });
 
   it('blends weights during dusk and dawn', () => {

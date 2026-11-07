@@ -21,7 +21,12 @@ export interface Enemy {
   readonly damage: number;
   /** Seconds until the next attack is allowed. */
   attackCooldown: number;
-  target: TargetId | undefined;
+  /** Ground enemies pick the player or the Phylactery; Wraiths may also pick a Grave Lantern. */
+  target: TargetId | 'lantern' | undefined;
+  /** The Lantern a Wraith is after, when `target` is 'lantern'. */
+  targetLanternId?: number;
+  /** Seconds of fade-in left (Wraiths): cannot move, attack, or be hit until 0. */
+  fadeIn: number;
   /** False once the enemy should be removed at the end of the tick. */
   alive: boolean;
 }
@@ -44,6 +49,7 @@ export function createEnemy(id: number, type: EnemyId, x: number, y: number, eli
     damage: elite ? def.damage * ELITE.damageMultiplier : def.damage,
     attackCooldown: 0,
     target: undefined,
+    fadeIn: def.fadeIn ?? 0,
     alive: true,
   };
 }

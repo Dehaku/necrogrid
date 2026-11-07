@@ -10,13 +10,13 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 
 ## Current status
 
-- Milestone: **M8 done** (stat modifiers, ten gear recipes, unlocks, C crafting menu with Altar check, Tab equipment slots, debug Unlock all gear). Next: M9. Update this line when a milestone is finished.
+- Milestone: **M9 done** (Wraiths with fade-in, Lantern targeting, and shots; Hellhounds from day 5; day-15 completion, win screen and endless; respawn after completion; Phylactery loss on; warning banners). Next: M10. Update this line when a milestone is finished.
+- Before M10 a human should play one full run at 1× (GAME_DESIGN.md M9 "Done when"); the automated soak run (day 1 → completion) passes but is not a playtest.
 - Player combat numbers come from `Game.stats` (base stats + equipped gear). Pass `stats` into Bolt, Chain, mana regen, and the spell bar; never read `BOLT.damage` etc. directly for gameplay.
 - `new Game(seed, events, { startingBase: false })` skips the free walls and Totem; use it in tests that need open ground around the Phylactery.
 - Resources change only through `Game.gain` / `Game.spend`, which emit `resources:changed` (the HUD counters depend on it).
-- `PHYLACTERY.destructionEndsRun` is `false` on purpose until M9 (see GAME_DESIGN.md section 11).
 - The page opens on the title screen with no run. `main.ts` owns `game` (undefined when no run is active) and creates a fresh `Game` and `EventBus` per run; anything that listens to game events must re-attach per run (see `Effects.attach`).
-- `SPAWN.activeRoster` in `src/data/spawn.ts` lists the enemies the director spawns. Add Wraith and Hellhound there in M9.
+- `SPAWN.activeRoster` in `src/data/spawn.ts` lists the enemies the director spawns (all five since M9).
 
 ## Commands
 

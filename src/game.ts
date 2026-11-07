@@ -1,7 +1,7 @@
 // The simulation for one run: world, time, player, Phylactery, enemies, and spawning.
 // main.ts owns the browser side (canvas, input, loop) and calls tick() at 60 Hz.
 
-import { ALTAR, BUILD_RULES, BUILDINGS, COLLECTOR, PHYLACTERY, TERRAIN_EDITS, TOTEM, type BuildingKind } from './data/buildings';
+import { ALTAR, BUILD_RULES, BUILDINGS, COLLECTOR, LANTERN, PHYLACTERY, TERRAIN_EDITS, TOTEM, type BuildingKind } from './data/buildings';
 import { nearestWithin, totemBolt } from './combat/totem';
 import { createBuilding, footprintCenter, placementProblem, shareOf, type Building, type PlacementWorld } from './entities/building';
 import { planStartingBase } from './entities/startingBase';
@@ -14,7 +14,9 @@ import { GearState } from './crafting/unlocks';
 import { type EnemyId } from './data/enemies';
 import { SPAWN } from './data/spawn';
 import { CHUNK_GENERATION_RADIUS, CHUNK_SIZE, TILE } from './data/terrain';
-import { NAV, PLAYER, SCORE } from './data/tuning';
+import { NAV, PLAYER, RESPAWN, SCORE } from './data/tuning';
+import { DAY_CYCLE } from './data/time';
+import { ENEMY_SHOT } from './data/enemies';
 import type { EventBus, GameEvents } from './core/events';
 import type { Point } from './core/input';
 import { hashInts, Rng } from './core/rng';
@@ -70,6 +72,21 @@ export interface PlayerCommand {
   repair?: boolean;
 }
 
+/** A shot fired by a ranged enemy (Wraith). Hits the player, or the first building it touches. */
+export interface EnemyShot {
+  x: number;
+  y: number;
+  prevX: number;
+  prevY: number;
+  vx: number;
+  vy: number;
+  life: number;
+  /** Damage to the player, and to a building (after the enemy's building multiplier). */
+  damage: number;
+  buildingDamage: number;
+  alive: boolean;
+}
+
 /** A harvest in progress. */
 export interface HarvestState {
   corpse: Corpse;
@@ -106,6 +123,12 @@ export class Game {
   readonly enemies: Enemy[] = [];
   readonly enemyHash = new SpatialHash<Enemy>(NAV.hashCellSize);
   readonly projectiles: Projectile[] = [];
+  readonly enemyShots: EnemyShot[] = [];
+  /** The Phylactery is complete (day 15 won). From then on, death means respawn (section 10.4). */
+  completed = false;
+  /** Seconds until the necromancer returns after dying post-completion; 0 while alive. */
+  respawnTimer = 0;
+  private deathSpot: Point = { x: 0, y: 0 };
   readonly resources = new Resources();
   /** Unlocked and equipped gear (section 10.3). */
   readonly gear = new GearState();
@@ -182,8 +205,76 @@ export class Game {
     events.on('chunk:generated', ({ chunkX, chunkY }) =>
       this.fields.chunkGenerated(chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE, CHUNK_SIZE),
     );
+    // The Phylactery completes when day 15's day phase ends with it still standing (section 10.4).
+    events.on('phase:dusk', ({ day }) => {
+      if (day === DAY_CYCLE.winDay) this.complete();
+    });
     this.generateChunks();
     if (options.startingBase ?? true) this.buildStartingBase();
+  }
+
+  /** True while the necromancer is dead and waiting to respawn (only after completion). */
+  get playerDead(): boolean {
+    return this.respawnTimer > 0;
+  }
+
+  /** Seconds left in day 15's completion countdown, or undefined outside it. */
+  completionRemaining(): number | undefined {
+    const s = this.cycle.state;
+    if (this.completed || s.day !== DAY_CYCLE.winDay || s.phase !== 'day') return undefined;
+    return s.phaseLength - s.timeInPhase;
+  }
+
+  /**
+   * Where the view (and the player-anchored spawn ring) is centered: the player, or while dead,
+   * a pan from the death spot to the Phylactery over the first `panTime` seconds.
+   */
+  viewCenter(): Point {
+    if (!this.playerDead) return { x: this.player.x, y: this.player.y };
+    const t = Math.min(1, (RESPAWN.delay - this.respawnTimer) / RESPAWN.panTime);
+    const e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+    const to = this.phylactery.center;
+    return { x: this.deathSpot.x + (to.x - this.deathSpot.x) * e, y: this.deathSpot.y + (to.y - this.deathSpot.y) * e };
+  }
+
+  private complete(): void {
+    if (this.completed || this.outcome) return;
+    this.completed = true;
+    this.events.emit('run:won', {
+      day: this.cycle.state.day,
+      kills: this.kills,
+      corpsesHarvested: this.corpsesHarvested,
+      score: this.score,
+    });
+  }
+
+  /** Death after completion: the binding pulls the necromancer back (section 10.4). */
+  private die(): void {
+    this.deathSpot = { x: this.player.x, y: this.player.y };
+    this.respawnTimer = RESPAWN.delay;
+    this.interruptHarvest('damage');
+    this.player.mendHealLeft = 0;
+    this.events.emit('player:died', {});
+    if (!this.godMode) {
+      this.phylactery.hp = Math.max(0, this.phylactery.hp - RESPAWN.phylacteryCost);
+      this.events.emit('phylactery:damaged', { amount: RESPAWN.phylacteryCost, hp: this.phylactery.hp });
+      if (this.phylactery.hp <= 0 && this.phylacteryLossEnabled) this.lose('phylactery');
+    }
+  }
+
+  private respawn(): void {
+    const p = this.player;
+    p.x = p.prevX = PLAYER.startTile.x + 0.5;
+    p.y = p.prevY = PLAYER.startTile.y + 0.5;
+    p.hp = p.maxHp;
+    p.mana = p.maxMana;
+    p.invulnerable = RESPAWN.invulnerability;
+    p.boltCooldown = 0;
+    p.chainCooldown = 0;
+    p.mendCooldown = 0;
+    p.mendHealLeft = 0;
+    this.respawnTimer = 0;
+    this.events.emit('player:respawned', {});
   }
 
   /** Section 10.5: free walls on the ring 2 tiles out (60% each), then a Totem and a Collector on that ring (never fully closed). */
@@ -331,7 +422,7 @@ export class Game {
       if (b.cooldown > 0) continue;
       const center = footprintCenter(b.footprint);
       if (b.kind === 'totem') {
-        const nearby = this.enemyHash.queryRadius(center.x, center.y, TOTEM.range).filter((e) => e.alive);
+        const nearby = this.enemyHash.queryRadius(center.x, center.y, TOTEM.range).filter((e) => e.alive && e.fadeIn <= 0);
         const target = nearestWithin(center, nearby, TOTEM.range);
         if (!target) continue;
         this.projectiles.push(totemBolt(center, target));
@@ -480,16 +571,22 @@ export class Game {
   tick(dt: number, command: PlayerCommand): void {
     if (this.outcome) return;
     this.cycle.advance(dt);
-    updatePlayer(this.player, command.move, command.aim, dt, this.playerTerrain, this.stats.manaRegen);
-    if (this.nearAltar()) this.player.mana = Math.min(this.player.maxMana, this.player.mana + ALTAR.manaRegenAura * dt);
-    this.updateRepair(dt, command.repair ?? false);
-    if (command.bolt) {
-      const bolt = tryCastBolt(this.player, command.aim, this.stats);
-      if (bolt) this.projectiles.push(bolt);
+    if (this.outcome) return;
+    if (this.playerDead) {
+      this.respawnTimer -= dt;
+      if (this.respawnTimer <= 0) this.respawn();
+    } else {
+      updatePlayer(this.player, command.move, command.aim, dt, this.playerTerrain, this.stats.manaRegen);
+      if (this.nearAltar()) this.player.mana = Math.min(this.player.maxMana, this.player.mana + ALTAR.manaRegenAura * dt);
+      this.updateRepair(dt, command.repair ?? false);
+      if (command.bolt) {
+        const bolt = tryCastBolt(this.player, command.aim, this.stats);
+        if (bolt) this.projectiles.push(bolt);
+      }
+      if (command.chain) this.castChain(command.aim);
+      if (command.mend) this.castMend();
+      this.updateHarvest(dt, command.harvest ?? false);
     }
-    if (command.chain) this.castChain(command.aim);
-    if (command.mend) this.castMend();
-    this.updateHarvest(dt, command.harvest ?? false);
     this.expireCorpses();
     this.generateChunks();
 
@@ -508,6 +605,8 @@ export class Game {
       if (enemy.alive) this.updateEnemy(enemy, dt);
       if (this.outcome) return;
     }
+    this.updateEnemyShots(dt);
+    if (this.outcome) return;
     this.removeGoneEnemies();
   }
 
@@ -628,9 +727,9 @@ export class Game {
       day: this.cycle.state.day,
       nightBlend: this.cycle.nightBlend,
       activeEnemies: this.enemies.length,
-      player: this.player,
+      player: this.viewCenter(),
       phylactery: this.phylactery.center,
-      camera: this.player,
+      camera: this.viewCenter(),
       isGenerated: (tx, ty) => this.map.getTile(tx, ty) !== undefined,
       isRock: (tx, ty) => this.map.getTile(tx, ty) === TILE.rock,
       isBuilding: (tx, ty) => this.buildings.has(tx, ty),
@@ -645,12 +744,21 @@ export class Game {
     const usesField = ground && def.navigation === 'field';
     enemy.prevX = enemy.x;
     enemy.prevY = enemy.y;
+    if (enemy.fadeIn > 0) {
+      enemy.fadeIn = Math.max(0, enemy.fadeIn - dt);
+      return;
+    }
+    if (!ground) {
+      this.updateFlyer(enemy, dt);
+      return;
+    }
     const tileX = Math.floor(enemy.x);
     const tileY = Math.floor(enemy.y);
     const fp = this.phylactery.footprint;
 
     // Distances to each target: path cost inside a field window, straight line otherwise.
-    const straightToPlayer = Math.hypot(this.player.x - enemy.x, this.player.y - enemy.y);
+    // A dead (respawning) necromancer is not a target.
+    const straightToPlayer = this.playerDead ? Infinity : Math.hypot(this.player.x - enemy.x, this.player.y - enemy.y);
     const straightToPhylactery = distanceToFootprint(enemy.x, enemy.y, fp);
     let toPlayer = straightToPlayer;
     let toPhylactery = straightToPhylactery;
@@ -662,10 +770,10 @@ export class Game {
         enemy.alive = false;
         return;
       }
-      if (fieldPlayer !== undefined) toPlayer = fieldPlayer;
+      if (fieldPlayer !== undefined && !this.playerDead) toPlayer = fieldPlayer;
       if (fieldPhylactery !== undefined) toPhylactery = fieldPhylactery;
     }
-    enemy.target = chooseTarget(enemy.target, { player: toPlayer, phylactery: toPhylactery });
+    enemy.target = chooseTarget(enemy.target === 'lantern' ? undefined : enemy.target, { player: toPlayer, phylactery: toPhylactery });
 
     // Attack the target when in range.
     const inRange =
@@ -681,7 +789,7 @@ export class Game {
     }
     enemy.attackCooldown = Math.max(0, enemy.attackCooldown - dt);
 
-    const field: FlowField = this.fields.field(enemy.target);
+    const field: FlowField = this.fields.field(enemy.target === 'player' ? 'player' : 'phylactery');
 
     const aimPoint = enemy.target === 'player' ? this.player : nearestPointOnFootprint(enemy.x, enemy.y, fp);
 
@@ -726,8 +834,111 @@ export class Game {
     );
   }
 
+/**
+   * Flying enemies (Wraiths, section 7): fly straight at a target, ignoring walls and rock. They
+   * choose between the player, the Phylactery, and Grave Lanterns by straight-line distance, with
+   * a Lantern's distance halved (aggroWeight 2), and switch only when another is clearly closer.
+   * In range they stop and fire slow shots.
+   */
+  private updateFlyer(enemy: Enemy, dt: number): void {
+    const def = enemy.def;
+    type Option = { kind: 'player' | 'phylactery' | 'lantern'; id?: number; point: Point; dist: number; score: number };
+    const options: Option[] = [];
+    if (!this.playerDead) {
+      const d = Math.hypot(this.player.x - enemy.x, this.player.y - enemy.y);
+      options.push({ kind: 'player', point: this.player, dist: d, score: d });
+    }
+    const fp = this.phylactery.footprint;
+    const pd = distanceToFootprint(enemy.x, enemy.y, fp);
+    options.push({ kind: 'phylactery', point: nearestPointOnFootprint(enemy.x, enemy.y, fp), dist: pd, score: pd });
+    for (const b of this.buildingsById.values()) {
+      if (b.kind !== 'lantern') continue;
+      const c = footprintCenter(b.footprint);
+      const d = Math.hypot(c.x - enemy.x, c.y - enemy.y);
+      options.push({ kind: 'lantern', id: b.id, point: c, dist: d, score: d / LANTERN.aggroWeight });
+    }
+    const best = options.reduce((a, b) => (b.score < a.score ? b : a));
+    const current = options.find((o) => o.kind === enemy.target && (o.kind !== 'lantern' || o.id === enemy.targetLanternId));
+    const pick = current && !(best.score < NAV.targetSwitchRatio * current.score) ? current : best;
+    enemy.target = pick.kind;
+    enemy.targetLanternId = pick.id;
+
+    if (pick.dist <= def.range) {
+      enemy.heading = Math.atan2(pick.point.y - enemy.y, pick.point.x - enemy.x);
+      enemy.attackCooldown -= dt;
+      if (enemy.attackCooldown <= 0) {
+        enemy.attackCooldown = def.attackInterval;
+        this.fireShot(enemy, pick.point);
+      }
+      return;
+    }
+    enemy.attackCooldown = Math.max(0, enemy.attackCooldown - dt);
+    const dx = pick.point.x - enemy.x;
+    const dy = pick.point.y - enemy.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const push = separation(enemy, this.enemyHash, this.neighbors);
+    steer(
+      enemy,
+      { x: dx / d + push.x * NAV.separationWeight, y: dy / d + push.y * NAV.separationWeight },
+      def.speed,
+      def.radius,
+      dt,
+      undefined,
+    );
+  }
+
+  private fireShot(enemy: Enemy, at: Point): void {
+    const speed = (enemy.def.projectileSpeed ?? 96) / 32;
+    const dx = at.x - enemy.x;
+    const dy = at.y - enemy.y;
+    const d = Math.hypot(dx, dy) || 1;
+    this.enemyShots.push({
+      x: enemy.x,
+      y: enemy.y,
+      prevX: enemy.x,
+      prevY: enemy.y,
+      vx: (dx / d) * speed,
+      vy: (dy / d) * speed,
+      life: ENEMY_SHOT.lifetime,
+      damage: enemy.damage,
+      buildingDamage: enemy.damage * enemy.def.buildingDamageMultiplier,
+      alive: true,
+    });
+    this.events.emit('enemy:fired', { x: enemy.x, y: enemy.y, elite: enemy.elite });
+  }
+
+  /** Shots fly straight, pass over rock, hit the player, or are blocked by the first building they touch. */
+  private updateEnemyShots(dt: number): void {
+    for (const shot of this.enemyShots) {
+      shot.prevX = shot.x;
+      shot.prevY = shot.y;
+      const stepLength = Math.hypot(shot.vx, shot.vy) * dt;
+      const steps = Math.max(1, Math.ceil(stepLength / 0.2));
+      for (let i = 0; i < steps && shot.alive; i++) {
+        shot.x += (shot.vx * dt) / steps;
+        shot.y += (shot.vy * dt) / steps;
+        if (!this.playerDead && Math.hypot(shot.x - this.player.x, shot.y - this.player.y) <= PLAYER.radius + ENEMY_SHOT.radius) {
+          shot.alive = false;
+          this.damagePlayer(shot.damage);
+          break;
+        }
+        const building = this.buildings.buildingAt(Math.floor(shot.x), Math.floor(shot.y));
+        if (building !== undefined) {
+          shot.alive = false;
+          this.damageBuildingBy(building, shot.buildingDamage);
+        }
+      }
+      shot.life -= dt;
+      if (shot.life <= 0) shot.alive = false;
+      if (this.outcome) return;
+    }
+    let write = 0;
+    for (const s of this.enemyShots) if (s.alive) this.enemyShots[write++] = s;
+    this.enemyShots.length = write;
+  }
+
   private castChain(cursor: Point): void {
-    const targets = tryCastChain(this.player, cursor, this.enemies.filter((e) => e.alive), this.stats);
+    const targets = tryCastChain(this.player, cursor, this.enemies.filter((e) => e.alive && e.fadeIn <= 0), this.stats);
     if (targets.length === 0) return;
     // Record positions before damage, so the visual links the enemies where they were hit.
     const points = [{ x: this.player.x, y: this.player.y }, ...targets.map((e) => ({ x: e.x, y: e.y }))];
@@ -742,7 +953,7 @@ export class Game {
       const reach = Math.hypot(bolt.vx, bolt.vy) * dt + bolt.radius + 1;
       nearby.length = 0;
       this.enemyHash.queryRadius(bolt.x, bolt.y, reach, nearby);
-      const candidates = nearby.filter((e) => e.alive).map((e) => ({ x: e.x, y: e.y, radius: e.def.radius, enemy: e }));
+      const candidates = nearby.filter((e) => e.alive && e.fadeIn <= 0).map((e) => ({ x: e.x, y: e.y, radius: e.def.radius, enemy: e }));
       const hit = stepBolt(bolt, dt, candidates, solid);
       if (hit) this.damageEnemy(hit.enemy, bolt.damage);
     }
@@ -767,17 +978,23 @@ export class Game {
   }
 
   private damagePlayer(amount: number): void {
-    if (this.godMode || this.player.invulnerable > 0) return;
+    if (this.godMode || this.player.invulnerable > 0 || this.playerDead) return;
     this.player.hp = Math.max(0, this.player.hp - amount);
     this.player.invulnerable = PLAYER.invulnerability;
     this.events.emit('player:damaged', { amount, hp: this.player.hp });
     this.interruptHarvest('damage');
-    if (this.player.hp <= 0) this.lose('player');
+    if (this.player.hp <= 0) {
+      if (this.completed) this.die();
+      else this.lose('player');
+    }
   }
 
   /** An enemy hits a building. Player buildings arrive in M7; until then only the Phylactery exists. */
   private damageBuilding(buildingId: number, enemy: Enemy): void {
-    const amount = enemy.damage * enemy.def.buildingDamageMultiplier;
+    this.damageBuildingBy(buildingId, enemy.damage * enemy.def.buildingDamageMultiplier);
+  }
+
+  private damageBuildingBy(buildingId: number, amount: number): void {
     if (buildingId === PHYLACTERY_ID) {
       if (this.godMode) return;
       this.phylactery.hp = Math.max(0, this.phylactery.hp - amount);
@@ -805,7 +1022,8 @@ export class Game {
   }
 
   private removeGoneEnemies(): void {
-    const { player, phylactery } = this;
+    const player = this.viewCenter();
+    const { phylactery } = this;
     let write = 0;
     for (const enemy of this.enemies) {
       const far =

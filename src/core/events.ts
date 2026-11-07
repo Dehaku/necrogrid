@@ -74,5 +74,12 @@ export interface GameEvents {
   'gear:equipped': { slot: GearSlot; id: GearId | undefined };
   /** Chain was cast. `points` runs from the necromancer through each enemy hit, in order. */
   'chain:cast': { points: { x: number; y: number }[] };
+  /** A Wraith fired a shot (drives the purple muzzle flash). */
+  'enemy:fired': { x: number; y: number; elite: boolean };
+  /** The necromancer died after completion and will respawn. */
+  'player:died': Record<string, never>;
+  'player:respawned': Record<string, never>;
+  /** The Phylactery completed: the run is won and continues in endless mode. */
+  'run:won': { day: number; kills: number; corpsesHarvested: number; score: number };
   'run:lost': { cause: 'player' | 'phylactery'; day: number; kills: number; corpsesHarvested: number; score: number };
 }

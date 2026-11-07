@@ -63,6 +63,26 @@ export const COLLECTOR_LINK = {
   color: 'rgba(190, 190, 196, 0.9)',
 } as const;
 
+/** Warning banners (section 8.4). */
+export const WARNINGS = {
+  /** Seconds a banner stays up (it fades over the last 0.5 s). */
+  duration: 3,
+  /** "Dusk approaching" and "Dawn approaching" show this many seconds before the phase. */
+  leadTime: 10,
+  /** "Phylactery under attack!" shows at most once per this many seconds. */
+  attackCooldown: 15,
+  /** "Phylactery critical!" below this share of max HP; again only after repaired above it. */
+  criticalShare: 0.25,
+  text: {
+    dusk: 'Dusk approaching',
+    dawn: 'Dawn approaching. The swarm returns',
+    underAttack: 'Phylactery under attack!',
+    critical: 'Phylactery critical!',
+    day15: 'Day 15. The binding begins',
+    complete: 'The Phylactery is complete',
+  },
+} as const;
+
 export const CORPSES = {
   /** How dark a corpse is drawn compared to the living enemy (0–1). */
   darken: 0.45,

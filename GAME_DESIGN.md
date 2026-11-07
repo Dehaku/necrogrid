@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.17. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.18. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -30,6 +30,7 @@
 | 0.15 | Starting Totem moved to the ring one tile past the walls. Esc, Tab, and E also leave build mode. Grave Lantern light 3 → 4 tiles. |
 | 0.16 | Starting Totem back on the inner ring, and the player can walk through it. Build ghost: description line, and reach circles for the Totem and Collector. Gray jagged line when a Collector harvests. Shamblers: no pathfinding, straight at the target with a sway. |
 | 0.17 | Starting base: the Totem (solid again) and a new free Corpse Collector both go on the wall ring, placed after the walls and taking priority over them; the ring is still never fully closed. |
+| 0.18 | M9 built: Wraiths (fade-in, Lantern targeting, slow shots blocked by buildings) and Hellhounds join the roster; day-15 countdown and win screen with endless Continue; respawn after completion; Phylactery destruction ends the run; warning banners. |
 
 ---
 
@@ -178,7 +179,7 @@ During dusk and dawn, each enemy's weight blends linearly between its day and ni
 - A Totem placed inside a large walled compound covers an 11 × 11 area, so a compound defended by Totems has almost no interior spawn tiles.
 
 **Wraiths:**
-- A Wraith **fades in** over 2 s. While fading in it cannot attack and cannot be hit.
+- A Wraith **fades in** over 2 s (drawn from transparent to solid). While fading in it cannot move, attack, or be hit: Bolts pass through it, and Chain and Totems ignore it.
 - Wraiths appear on **every night**, from day 1 onward.
 
 **Limits:**
@@ -219,7 +220,7 @@ All enemies are defined as data in `src/data/enemies.ts`. Adding an enemy means 
 - The swipe is a crescent arc centered 0.6 × the enemy's draw size + 0.3 tile in front of its center, spanning 100°, with an outer radius of 0.5 tile × (draw size / 0.4), so Brutes swing wider than Imps.
 - A bright leading edge (90% opacity) sweeps forward across the 100° (clockwise) in the first 65% of the 0.18 s, with a 60° trail behind it that fades to nothing. Once the edge reaches the far side, the whole swipe fades out. Color `#ff3b3b`; elites use `#ffb03b` so their hits stand out.
 - Purely visual: the simulation emits `enemy:attacked` (`x`, `y`, `angle`, `size`, `elite`) and the renderer keeps a short list of active swipes. Swipes age with simulation time, so they freeze while paused and speed up with the debug time scale.
-- Wraith shots (M9) get a small purple flash at the Wraith instead.
+- Wraith shots get a small purple flash at the Wraith instead (orange for elites). Shots are purple orbs, fly over rock, and are stopped by the first building (any building, including the Phylactery and Lanterns) they touch.
 
 **Pathfinding:** Ground enemies follow flow fields with smoothed movement, except Shamblers (navigation 'direct'), which walk straight at their target, sway (wiggle: up to 0.55 rad, two out-of-step waves with a per-enemy phase), and attack whatever building is on the straight line. Wraiths steer directly. Section 15.1 has the details.
 
@@ -568,8 +569,8 @@ Gaps in the wall ring are expected. They give enemies a route in, so the first f
 
 ## 11. Win and Lose Conditions
 
-- **Win:** the Phylactery completes during day 15 (section 10.4). The game pauses and shows a summary with a **Continue** button. Continue resumes the run in endless mode.
-- **Build note:** Phylactery destruction ending the run is switched off (`PHYLACTERY.destructionEndsRun = false` in `src/data/buildings.ts`) until M9, so M4–M8 can be tested before the starting base and repairs exist. Player death ends the run from M4.
+- **Win:** the Phylactery completes when day 15's day phase ends with it standing (section 10.4); the panel counts down 2:30 → 0:00 during that phase, then reads "Bound". The game pauses on "The Phylactery is complete" with a summary and a **Continue** button. Continue resumes the run in endless mode (the day ring shows "Day N" only).
+- **Respawn view:** while the necromancer is gone (3 s), the necromancer and their HUD are hidden, "Your soul returns to the Phylactery… N" counts down, and the camera pans to the Phylactery. Enemies ignore the dead necromancer.
 - **Lose (before completion):** player HP reaches 0, or the Phylactery is destroyed. The end screen shows the day reached, the number of corpses harvested, and the score, with a **Return to title** button. The run is no longer active, so the title screen shows no Resume.
 - **Lose (after completion):** only if the Phylactery is destroyed. Player death is not a loss; the necromancer respawns (section 10.4). Each death costs the Phylactery 30 HP, which can destroy it.
 - **Score:** `day × 100 + kills × 2 + buildingsDestroyedByDemons × −10`. Shown on the end screen and saved locally.
@@ -865,6 +866,7 @@ Record every balance change here so intent is not lost.
 | v0.10 | Respawn invulnerability | 1.5 s | 3 s | Respawning into a crowd |
 | v0.10 | Chunk generation radius | 1.5 × view | 2 × view | Spawn rings reach 40 tiles out |
 | v0.15 | Grave Lantern light radius | 3 tiles | 4 tiles | Playtest feedback |
+| v0.18 | (observation, no change) | — | — | Automated full run with an idle necromancer: the 150-enemy cap is reached by day 3 and stays full, so spawning stalls; an undefended starting base is gone by day 3. Revisit the cap and despawn rules after human playtests |
 
 ## 17. Non-Goals (v1)
 

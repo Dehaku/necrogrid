@@ -73,8 +73,10 @@ describe('player damage and death', () => {
     expect(game.cycle.elapsed).toBe(elapsed);
   });
 
-  it('does not end the run on Phylactery destruction until that rule is turned on (M9)', () => {
+  it('ends the run on Phylactery destruction by default (on since M9)', () => {
     const { game } = quietGame();
+    expect(game.phylacteryLossEnabled).toBe(true);
+    game.phylacteryLossEnabled = false;
     game.phylactery.hp = 1;
     game.spawnEnemy('imp', 3.5, 0.5, false);
     for (let i = 0; i < 120; i++) game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false, chain: false });

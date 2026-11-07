@@ -1,7 +1,7 @@
 // Placeholder shapes (GAME_DESIGN.md section 15, placeholder art rule).
 
 import { PHYLACTERY, type BuildingKind } from '../data/buildings';
-import { ELITE, type EnemyDef } from '../data/enemies';
+import { ELITE, ENEMY_SHOT, type EnemyDef } from '../data/enemies';
 import { BOLT } from '../data/spells';
 import { CORPSES } from '../data/ui';
 import { TILE_PROPS, UNGENERATED_COLOR, type TileId } from '../data/terrain';
@@ -108,14 +108,18 @@ export function drawEnemy(
   y: number,
   heading: number,
   time: number,
+  /** 0–1; Wraiths fade in from 0. */
+  opacity = 1,
 ): void {
   const p = camera.worldToScreen(x, y);
   const margin = TILE_SIZE * 2;
   if (p.x < -margin || p.y < -margin || p.x > VIEW_WIDTH + margin || p.y > VIEW_HEIGHT + margin) return;
+  ctx.save();
+  ctx.globalAlpha = opacity;
   if (elite) drawEliteMarker(ctx, p.x, p.y, time);
+  ctx.globalAlpha = opacity;
 
   const s = def.drawSize * TILE_SIZE;
-  ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(heading);
   ctx.beginPath();
@@ -246,6 +250,23 @@ export function drawBuilding(ctx: CanvasRenderingContext2D, camera: Camera, kind
     ctx.textBaseline = 'middle';
     ctx.fillText(label, p.x + w / 2, p.y + h / 2 + 1);
   }
+}
+
+/** A Wraith shot: a slow purple orb with a faint trail. */
+export function drawEnemyShot(ctx: CanvasRenderingContext2D, camera: Camera, x: number, y: number, prevX: number, prevY: number): void {
+  const p = camera.worldToScreen(x, y);
+  const tail = camera.worldToScreen(prevX - (x - prevX) * 4, prevY - (y - prevY) * 4);
+  ctx.strokeStyle = 'rgba(197, 140, 255, 0.35)';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(tail.x, tail.y);
+  ctx.lineTo(p.x, p.y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = ENEMY_SHOT.color;
+  ctx.fill();
 }
 
 /** A bolt: a glowing dot with a short trail back to its previous position. Totem bolts are pale green. */

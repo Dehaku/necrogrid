@@ -13,6 +13,15 @@ import type { Point } from '../core/input';
 import { Rng } from '../core/rng';
 import type { Camera } from './camera';
 
+interface Flash {
+  x: number;
+  y: number;
+  elite: boolean;
+  age: number;
+}
+
+const FLASH_TIME = 0.25;
+
 interface Popup {
   x: number;
   y: number;
@@ -112,6 +121,8 @@ export class Effects {
   private chains: ChainBolt[] = [];
   private popups: Popup[] = [];
   private collectorLinks: ChainBolt[] = [];
+  /** Purple muzzle flashes where Wraiths fire (section 7). */
+  private flashes: Flash[] = [];
   /** Visual-only randomness (chain jaggedness). Separate from the simulation's RNG streams. */
   private readonly visualRng = new Rng(0x7a11);
   private unsubscribe: (() => void)[] = [];
@@ -127,6 +138,7 @@ export class Effects {
         this.numbers.push({ x: e.x, y: e.y - 0.4, text: String(Math.round(e.amount)), age: 0 }),
       ),
       events.on('chain:cast', (e) => this.chains.push({ path: jaggedPath(e.points, this.visualRng), age: 0 })),
+      events.on('enemy:fired', (e) => this.flashes.push({ ...e, age: 0 })),
       events.on('collector:collected', (e) =>
         this.collectorLinks.push({
           path: jaggedPath([{ x: e.fromX, y: e.fromY }, { x: e.toX, y: e.toY }], this.visualRng, COLLECTOR_LINK.segmentLength, COLLECTOR_LINK.jitter),
@@ -164,6 +176,7 @@ export class Effects {
     this.chains = [];
     this.popups = [];
     this.collectorLinks = [];
+    this.flashes = [];
   }
 
   advance(dt: number): void {
@@ -172,6 +185,8 @@ export class Effects {
     for (const c of this.chains) c.age += dt;
     for (const p of this.popups) p.age += dt;
     for (const l of this.collectorLinks) l.age += dt;
+    for (const f of this.flashes) f.age += dt;
+    this.flashes = this.flashes.filter((f) => f.age < FLASH_TIME);
     this.collectorLinks = this.collectorLinks.filter((l) => l.age < COLLECTOR_LINK.fade);
     this.swipes = this.swipes.filter((s) => s.age < SWIPE.duration);
     this.numbers = this.numbers.filter((n) => n.age < DAMAGE_NUMBERS.lifetime);
@@ -262,6 +277,16 @@ export class Effects {
   /** Chain links and damage numbers, drawn over everything in the world (after lighting). */
   drawOverlay(ctx: CanvasRenderingContext2D, camera: Camera): void {
     this.drawCollectorLinks(ctx, camera);
+    for (const f of this.flashes) {
+      const t = f.age / FLASH_TIME;
+      const p = camera.worldToScreen(f.x, f.y);
+      ctx.globalAlpha = 0.85 * (1 - t);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6 + 14 * t, 0, Math.PI * 2);
+      ctx.fillStyle = f.elite ? '#ffb03b' : '#c58cff';
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
     this.drawChains(ctx, camera);
     this.drawPopups(ctx, camera);
     if (!this.showDamageNumbers) return;

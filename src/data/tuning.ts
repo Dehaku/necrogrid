@@ -44,6 +44,18 @@ export const SCORE = {
   perBuildingLost: -10,
 } as const;
 
+/** After the Phylactery is complete, death is not the end (section 10.4). */
+export const RESPAWN = {
+  /** HP the Phylactery loses on each death; this can destroy it. */
+  phylacteryCost: 30,
+  /** Seconds the necromancer is gone. */
+  delay: 3,
+  /** Seconds the camera takes to pan from the death spot to the Phylactery (ease-in-out). */
+  panTime: 1,
+  /** Seconds of invulnerability on return. */
+  invulnerability: 3,
+} as const;
+
 export const PLAYER = {
   maxHp: 100,
   maxMana: 100,

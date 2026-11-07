@@ -41,6 +41,8 @@ export interface EnemyDef {
   readonly navigation: 'field' | 'direct';
   /** Optional sway in the heading: up to `strength` radians either side, `speed` sways per second. */
   readonly wiggle?: { readonly strength: number; readonly speed: number };
+  /** Seconds to fade in after spawning; meanwhile it cannot move, attack, or be hit. */
+  readonly fadeIn?: number;
 }
 
 /** Melee range in tiles, center to center (section 7). */
@@ -70,7 +72,7 @@ export const ENEMIES: Readonly<Record<EnemyId, EnemyDef>> = {
     id: 'wraith', name: 'Wraith', hp: 40, speed: 70, damage: 8, attackInterval: 2.5, attack: 'ranged',
     range: 6, radius: 0.5, drawSize: 0.45, spawnWeightDay: 0, spawnWeightNight: 40, minDay: 1,
     movement: 'flying', projectileSpeed: 96, corpseSize: 'medium', color: 'rgba(170, 110, 230, 0.75)',
-    shape: 'diamond', buildingDamageMultiplier: 1, navigation: 'direct',
+    shape: 'diamond', buildingDamageMultiplier: 1, navigation: 'direct', fadeIn: 2,
   },
   hellhound: {
     id: 'hellhound', name: 'Hellhound', hp: 35, speed: 120, damage: 10, attackInterval: 1.0, attack: 'melee',
@@ -79,6 +81,15 @@ export const ENEMIES: Readonly<Record<EnemyId, EnemyDef>> = {
     navigation: 'field',
   },
 };
+
+/** Shots fired by ranged enemies (Wraiths). Section 7. */
+export const ENEMY_SHOT = {
+  /** Hit radius in tiles. */
+  radius: 0.2,
+  /** Seconds before it fizzles. */
+  lifetime: 2.5,
+  color: '#c58cff',
+} as const;
 
 export const ELITE = {
   /** Chance per spawned enemy (section 7.1). */

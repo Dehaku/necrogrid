@@ -29,6 +29,6 @@ export const SPAWN = {
   maxActiveEnemies: 150,
   /** Enemies farther than this from both the player and the Phylactery are removed. */
   despawnDistance: 2 * VIEW_RADIUS,
-  /** Enemy types the director may spawn. Wraith and Hellhound join in M9. */
-  activeRoster: ['imp', 'shambler', 'brute'] as readonly EnemyId[],
+  /** Enemy types the director may spawn. */
+  activeRoster: ['imp', 'shambler', 'brute', 'hellhound', 'wraith'] as readonly EnemyId[],
 } as const;

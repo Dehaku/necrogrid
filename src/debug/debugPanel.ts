@@ -11,8 +11,8 @@ import type { FixedStepLoop } from '../core/loop';
 import type { DayCycle } from '../time/dayCycle';
 import type { GoalId } from '../world/flowField';
 
-/** Enemy types the "click to spawn" tool offers. Wraith joins once its attack exists (M9). */
-const SPAWNABLE: readonly EnemyId[] = ['imp', 'shambler', 'brute', 'hellhound'];
+/** Enemy types the "click to spawn" tool offers. */
+const SPAWNABLE: readonly EnemyId[] = ['imp', 'shambler', 'brute', 'hellhound', 'wraith'];
 
 /** Settings the panel changes and the game reads every frame. */
 export interface DebugSettings {

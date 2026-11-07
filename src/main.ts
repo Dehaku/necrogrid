@@ -15,7 +15,7 @@ import { Camera } from './render/camera';
 import { GameCanvas } from './render/canvas';
 import { Effects } from './render/effects';
 import { Lighting } from './render/lighting';
-import { drawBolt, drawBuilding, drawCorpse, drawEnemy, drawPhylactery, drawPlayer, drawTerrain } from './render/sprites';
+import { drawBolt, drawBuilding, drawCorpse, drawEnemy, drawEnemyShot, drawPhylactery, drawPlayer, drawTerrain } from './render/sprites';
 import { LANTERN, TOTEM, type BuildChoice } from './data/buildings';
 import { footprintAtCursor } from './entities/building';
 import { repairCostToFull } from './economy/repair';
@@ -32,6 +32,7 @@ import { drawCrescents, drawDayRing, drawHarvestPrompt, drawSpellBar, spellIcons
 import type { MenuPress } from './ui/menuWidgets';
 import { drawAutoPauseOverlay } from './ui/pauseOverlay';
 import { ResourceHud } from './ui/resourceHud';
+import { Warnings } from './ui/warnings';
 import { loadSettings, saveSettings, SettingsPanel, type Settings } from './ui/settings';
 import { TitleScreen, type MenuResult } from './ui/titleScreen';
 
@@ -48,6 +49,7 @@ const loop = new FixedStepLoop({ tickRate: TICK_RATE, maxFrameTime: MAX_FRAME_TI
 const pause = new PauseState();
 const camera = new Camera();
 const resourceHud = new ResourceHud();
+const warnings = new Warnings();
 
 /** Local storage, if the browser allows it (private windows and blocked storage may not). */
 function storage(): Storage | undefined {
@@ -140,6 +142,12 @@ function startRun(seed: number = newRunSeed(location.search)): void {
   game = new Game(seed, events);
   effects.attach(events);
   resourceHud.attach(events);
+  warnings.attach(events);
+  events.on('run:won', (summary) => {
+    endScreen.openWin(summary);
+    pause.pause('menu');
+    input.clearAll();
+  });
   equipmentScreen.close();
   craftMenu.close();
   buildMode.active = false;
@@ -201,7 +209,12 @@ input.interceptPress = (press) => {
   // While a screen is open, every press goes to it and never reaches the game.
   if (endScreen.isOpen) {
     const menuPress = toMenuPress(press);
-    if (menuPress && endScreen.handle(menuPress) === 'title') openTitle();
+    const choice = menuPress ? endScreen.handle(menuPress) : undefined;
+    if (choice === 'title') openTitle();
+    else if (choice === 'continue') {
+      endScreen.close();
+      pause.resume('menu');
+    }
     return true;
   }
   if (titleScreen.isOpen) {
@@ -355,6 +368,7 @@ function tick(dt: number): void {
   });
   effects.advance(dt);
   resourceHud.advance(dt);
+  warnings.update(dt, { cycle: game.cycle.state, phylacteryHp: game.phylactery.hp, phylacteryMaxHp: game.phylactery.maxHp });
   input.endTick();
 
   debugPanel?.recordTick(performance.now() - start);
@@ -364,11 +378,26 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+/** While dead after completion: the soul returning, with the seconds left. */
+function drawRespawnNotice(ctx: CanvasRenderingContext2D, secondsLeft: number): void {
+  ctx.font = "700 22px Georgia, 'Times New Roman', serif";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+  const text = `Your soul returns to the Phylactery… ${Math.ceil(secondsLeft)}`;
+  ctx.strokeText(text, 640, 470);
+  ctx.fillStyle = '#c9b8ec';
+  ctx.fillText(text, 640, 470);
+}
+
 function drawRun(run: Game): void {
   const alpha = loop.alpha;
   const { player } = run;
-  const x = lerp(player.prevX, player.x, alpha);
-  const y = lerp(player.prevY, player.y, alpha);
+  const dead = run.playerDead;
+  const view = run.viewCenter();
+  const x = dead ? view.x : lerp(player.prevX, player.x, alpha);
+  const y = dead ? view.y : lerp(player.prevY, player.y, alpha);
   camera.centerOn(x, y);
   const ctx = screen.ctx;
   const time = run.cycle.elapsed;
@@ -381,14 +410,16 @@ function drawRun(run: Game): void {
   }
   for (const b of run.buildingsById.values()) drawBuilding(ctx, camera, b.kind, b.footprint, b.def.color, b.def.label);
   for (const e of run.enemies) {
-    drawEnemy(ctx, camera, e.def, e.elite, lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha), e.heading, time);
+    const fade = e.def.fadeIn ? 1 - e.fadeIn / e.def.fadeIn : 1;
+    drawEnemy(ctx, camera, e.def, e.elite, lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha), e.heading, time, fade);
   }
+  for (const s of run.enemyShots) drawEnemyShot(ctx, camera, lerp(s.prevX, s.x, alpha), lerp(s.prevY, s.y, alpha), s.prevX, s.prevY);
   effects.drawWorld(ctx, camera);
   for (const b of run.projectiles) {
     drawBolt(ctx, camera, lerp(b.prevX, b.x, alpha), lerp(b.prevY, b.y, alpha), b.prevX, b.prevY, b.source === 'totem' ? TOTEM.boltColor : undefined);
   }
   const blink = player.invulnerable > 0 && Math.floor(player.invulnerable / 0.08) % 2 === 0;
-  drawPlayer(ctx, camera, x, y, player.facing, blink);
+  if (!dead) drawPlayer(ctx, camera, x, y, player.facing, blink);
 
   const me = camera.worldToScreen(x, y);
   const lights = [{ x: me.x, y: me.y, radius: LIGHTING.playerLightRadius * TILE_SIZE }];
@@ -429,10 +460,15 @@ function drawRun(run: Game): void {
     drawHarvestPrompt(ctx, p.x, p.y, keyLabel, run.harvest ? run.harvest.progress / run.harvest.duration : undefined);
   }
   effects.drawOverlay(ctx, camera);
-  drawCrescents(ctx, me.x, me.y, player);
-  drawSpellBar(ctx, me.x, me.y, spellIcons(player, run.resources.get('flesh'), run.stats));
-  drawDayRing(ctx, run.cycle.state);
-  drawPhylacteryPanel(ctx, run.phylactery.hp, run.phylactery.maxHp);
+  if (!dead) {
+    drawCrescents(ctx, me.x, me.y, player);
+    drawSpellBar(ctx, me.x, me.y, spellIcons(player, run.resources.get('flesh'), run.stats));
+  } else {
+    drawRespawnNotice(ctx, run.respawnTimer);
+  }
+  drawDayRing(ctx, run.cycle.state, run.completed);
+  drawPhylacteryPanel(ctx, run.phylactery.hp, run.phylactery.maxHp, run.completionRemaining(), run.completed);
+  warnings.draw(ctx);
   const arrow = edgeArrowPosition(camera.worldToScreen(run.phylactery.center.x, run.phylactery.center.y));
   if (arrow) drawEdgeArrow(ctx, arrow, time - lastPhylacteryHit < 2, performance.now());
   if (buildMode.active) drawHotbar(ctx, buildMode, (cost) => run.resources.canAfford(cost));
