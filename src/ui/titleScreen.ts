@@ -2,6 +2,7 @@
 // Title mode: no run is active (page load, or after a loss). Pause mode: a run is active
 // and paused behind the screen; Resume is the top button.
 
+import type { BestScore } from './bestScore';
 import { CONTROLS, type ControlBinding } from '../data/controls';
 import { MENU, TITLE } from '../data/ui';
 import { VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
@@ -203,6 +204,9 @@ export class TitleScreen {
   }
 
   /** Draws the screen. In pause mode the paused world must already be drawn underneath. */
+  /** The saved best score, shown bottom-left (M10). */
+  best: BestScore | undefined;
+
   draw(ctx: CanvasRenderingContext2D, now: number, seed: number | undefined): void {
     ctx.fillStyle = this.mode === 'pause' ? TITLE.pauseOverlay : TITLE.background;
     ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
@@ -211,12 +215,14 @@ export class TitleScreen {
     const rects = this.buttonRects();
     this.buttons().forEach((id, i) => drawButton(ctx, rects[i]!, LABELS[id], this.view === 'menu' && i === this.focus));
     this.drawControls(ctx);
-    if (this.mode === 'pause' && seed !== undefined) {
-      ctx.fillStyle = MENU.panelText;
-      ctx.font = '12px ui-monospace, Consolas, monospace';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(`Seed ${seed}`, 16, VIEW_HEIGHT - 14);
+    ctx.fillStyle = MENU.panelText;
+    ctx.font = '12px ui-monospace, Consolas, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    if (this.mode === 'pause' && seed !== undefined) ctx.fillText(`Seed ${seed}`, 16, VIEW_HEIGHT - 14);
+    if (this.best) {
+      const y = this.mode === 'pause' && seed !== undefined ? VIEW_HEIGHT - 32 : VIEW_HEIGHT - 14;
+      ctx.fillText(`Best score ${this.best.score} · day ${this.best.day}${this.best.won ? ' · Bound' : ''}`, 16, y);
     }
 
     if (this.view === 'confirm') this.drawConfirm(ctx);

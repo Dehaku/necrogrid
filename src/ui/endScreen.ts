@@ -2,7 +2,8 @@
 // Loss: summary and Return to title. Win (the Phylactery completes): summary and Continue,
 // which resumes the run in endless mode.
 
-import { MENU, TITLE } from '../data/ui';
+import { BEST_SCORE, MENU, TITLE } from '../data/ui';
+import type { BestScore } from './bestScore';
 import { VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
 import type { RunOutcome } from '../game';
 import { contains, drawBox, drawButton, type MenuPress, type Rect } from './menuWidgets';
@@ -23,6 +24,9 @@ export class EndScreen {
   mode: 'lost' | 'won' = 'lost';
   outcome: RunOutcome | undefined;
   summary: RunSummary | undefined;
+  /** The best score after this run, and whether this run set it. */
+  best: BestScore | undefined;
+  newBest = false;
 
   get isOpen(): boolean {
     return this.summary !== undefined;
@@ -45,10 +49,18 @@ export class EndScreen {
   close(): void {
     this.outcome = undefined;
     this.summary = undefined;
+    this.best = undefined;
+    this.newBest = false;
+  }
+
+  /** Shows the best score under the summary (M10), and whether this run just set it. */
+  setBest(current: BestScore | undefined, isNew: boolean): void {
+    this.best = current;
+    this.newBest = isNew;
   }
 
   private box(): Rect {
-    return { x: VIEW_WIDTH / 2 - 240, y: VIEW_HEIGHT / 2 - 160, w: 480, h: 320 };
+    return { x: VIEW_WIDTH / 2 - 240, y: VIEW_HEIGHT / 2 - 175, w: 480, h: 350 };
   }
 
   buttonRect(): Rect {
@@ -89,6 +101,7 @@ export class EndScreen {
       ['Corpses harvested', String(s.corpsesHarvested)],
       ['Score', String(s.score)],
     ];
+    if (this.best) rows.push(['Best', this.newBest ? 'New best!' : `${this.best.score} (day ${this.best.day})`]);
     ctx.font = '16px system-ui, sans-serif';
     rows.forEach(([label, value], i) => {
       const y = b.y + 112 + i * 28;
@@ -96,7 +109,7 @@ export class EndScreen {
       ctx.fillStyle = MENU.panelText;
       ctx.fillText(label, cx - 10, y);
       ctx.textAlign = 'left';
-      ctx.fillStyle = MENU.focusText;
+      ctx.fillStyle = label === 'Best' && this.newBest ? BEST_SCORE.newBestColor : MENU.focusText;
       ctx.fillText(value, cx + 10, y);
     });
     drawButton(ctx, this.buttonRect(), won ? 'Continue' : 'Return to title', true);

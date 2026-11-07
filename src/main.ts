@@ -3,9 +3,10 @@
 
 import { CONTROLS } from './data/controls';
 import { LIGHTING } from './data/time';
-import { MAX_FRAME_TIME, TICK_RATE, TILE_SIZE } from './data/tuning';
+import { MAX_FRAME_TIME, TICK_RATE, TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from './data/tuning';
 import { EventBus, type GameEvents } from './core/events';
-import { bindInput, boundKeys, buttonsForAction, Input, keysForAction } from './core/input';
+import { bindInput, boundKeys, buttonsForAction, Input, keysForAction, type Point } from './core/input';
+import { footprintCenter } from './entities/building';
 import { FixedStepLoop, PauseState } from './core/loop';
 import { newRunSeed } from './core/rng';
 import { DebugPanel } from './debug/debugPanel';
@@ -35,6 +36,10 @@ import { ResourceHud } from './ui/resourceHud';
 import { Warnings } from './ui/warnings';
 import { loadSettings, saveSettings, SettingsPanel, type Settings } from './ui/settings';
 import { TitleScreen, type MenuResult } from './ui/titleScreen';
+import { SoundPlayer, WebAudioBackend } from './audio/sound';
+import { Particles } from './render/particles';
+import { ScreenShake } from './render/shake';
+import { BestScoreTracker } from './ui/bestScore';
 
 const canvasElement = document.querySelector<HTMLCanvasElement>('#game');
 if (!canvasElement) throw new Error('Missing #game canvas');
@@ -50,6 +55,21 @@ const pause = new PauseState();
 const camera = new Camera();
 const resourceHud = new ResourceHud();
 const warnings = new Warnings();
+const particles = new Particles();
+const shake = new ScreenShake();
+const audioBackend = new WebAudioBackend();
+const sound = new SoundPlayer(
+  audioBackend,
+  () => performance.now() / 1000,
+  () => (game ? { x: camera.x, y: camera.y } : undefined),
+);
+// Browsers allow audio only after a user gesture.
+for (const type of ['pointerdown', 'keydown'] as const) window.addEventListener(type, () => audioBackend.unlock());
+
+/** True if a world point is inside the current view. */
+function onScreen(x: number, y: number): boolean {
+  return Math.abs(x - camera.x) <= VIEW_WIDTH / TILE_SIZE / 2 && Math.abs(y - camera.y) <= VIEW_HEIGHT / TILE_SIZE / 2;
+}
 
 /** Local storage, if the browser allows it (private windows and blocked storage may not). */
 function storage(): Storage | undefined {
@@ -62,6 +82,8 @@ function storage(): Storage | undefined {
 
 function applySettings(settings: Settings): void {
   effects.showDamageNumbers = settings.damageNumbers;
+  sound.volume = settings.masterVolume / 100;
+  shake.enabled = settings.screenShake;
 }
 
 const settingsPanel = new SettingsPanel(loadSettings(storage()), (settings) => {
@@ -72,6 +94,8 @@ applySettings(settingsPanel.settings);
 
 const titleScreen = new TitleScreen(settingsPanel);
 const endScreen = new EndScreen();
+const bestScore = new BestScoreTracker(storage());
+titleScreen.best = bestScore.best;
 const equipmentScreen = new EquipmentScreen();
 const craftMenu = new CraftMenu();
 const buildMode = new BuildMode();
@@ -143,8 +167,14 @@ function startRun(seed: number = newRunSeed(location.search)): void {
   effects.attach(events);
   resourceHud.attach(events);
   warnings.attach(events);
+  particles.attach(events);
+  shake.attach(events, onScreen);
+  sound.attach(events);
   events.on('run:won', (summary) => {
     endScreen.openWin(summary);
+    const isNew = bestScore.record({ score: summary.score, day: summary.day, won: true });
+    endScreen.setBest(bestScore.best, isNew);
+    titleScreen.best = bestScore.best;
     pause.pause('menu');
     input.clearAll();
   });
@@ -155,6 +185,9 @@ function startRun(seed: number = newRunSeed(location.search)): void {
   events.on('phylactery:damaged', () => (lastPhylacteryHit = game?.cycle.elapsed ?? 0));
   events.on('run:lost', (outcome) => {
     endScreen.open(outcome);
+    const isNew = bestScore.record({ score: outcome.score, day: outcome.day, won: game?.completed ?? false });
+    endScreen.setBest(bestScore.best, isNew);
+    titleScreen.best = bestScore.best;
     pause.pause('menu');
     input.clearAll();
   });
@@ -170,6 +203,10 @@ function startRun(seed: number = newRunSeed(location.search)): void {
 function openTitle(): void {
   game = undefined;
   effects.detach();
+  particles.detach();
+  shake.detach();
+  sound.detach();
+  titleScreen.best = bestScore.best;
   endScreen.close();
   equipmentScreen.close();
   craftMenu.close();
@@ -367,6 +404,8 @@ function tick(dt: number): void {
     repair: input.anyKeyDown(keys.repair),
   });
   effects.advance(dt);
+  particles.advance(dt);
+  shake.advance(dt);
   resourceHud.advance(dt);
   warnings.update(dt, { cycle: game.cycle.state, phylacteryHp: game.phylactery.hp, phylacteryMaxHp: game.phylactery.maxHp });
   input.endTick();
@@ -398,7 +437,9 @@ function drawRun(run: Game): void {
   const view = run.viewCenter();
   const x = dead ? view.x : lerp(player.prevX, player.x, alpha);
   const y = dead ? view.y : lerp(player.prevY, player.y, alpha);
-  camera.centerOn(x, y);
+  // Screen shake moves only the drawn view; aim and simulation use the unshaken camera (tick).
+  const jolt = shake.offset();
+  camera.centerOn(x + jolt.x / TILE_SIZE, y + jolt.y / TILE_SIZE);
   const ctx = screen.ctx;
   const time = run.cycle.elapsed;
 
@@ -409,12 +450,19 @@ function drawRun(run: Game): void {
     drawCorpse(ctx, camera, ENEMIES[c.enemyType], c.elite, c.x, c.y, c.heading, corpseOpacity(c, time));
   }
   for (const b of run.buildingsById.values()) drawBuilding(ctx, camera, b.kind, b.footprint, b.def.color, b.def.label);
+  const links: { id: number; from: Point; to: Point; progress: number }[] = [];
+  for (const b of run.buildingsById.values()) {
+    if (!b.link || b.linkDuration <= 0) continue;
+    links.push({ id: b.id, from: footprintCenter(b.footprint), to: b.link, progress: 1 - b.cooldown / b.linkDuration });
+  }
+  effects.drawLiveCollectorLinks(ctx, camera, links, time);
   for (const e of run.enemies) {
     const fade = e.def.fadeIn ? 1 - e.fadeIn / e.def.fadeIn : 1;
     drawEnemy(ctx, camera, e.def, e.elite, lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha), e.heading, time, fade);
   }
   for (const s of run.enemyShots) drawEnemyShot(ctx, camera, lerp(s.prevX, s.x, alpha), lerp(s.prevY, s.y, alpha), s.prevX, s.prevY);
   effects.drawWorld(ctx, camera);
+  particles.draw(ctx, camera);
   for (const b of run.projectiles) {
     drawBolt(ctx, camera, lerp(b.prevX, b.x, alpha), lerp(b.prevY, b.y, alpha), b.prevX, b.prevY, b.source === 'totem' ? TOTEM.boltColor : undefined);
   }
@@ -524,6 +572,9 @@ if (debugEnabled) {
       camera,
       titleScreen,
       endScreen,
+      sound,
+      particles,
+      shake,
       debug: debugPanel,
       startRun,
       get game() {

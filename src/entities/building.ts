@@ -5,6 +5,7 @@ import type { ResourceAmounts, ResourceId } from '../data/resources';
 import { RESOURCE_ORDER } from '../data/resources';
 import { TILE_PROPS, type TileId } from '../data/terrain';
 import type { Point } from '../core/input';
+import type { Corpse } from './corpse';
 import { distanceToFootprint, type Footprint } from '../world/grid';
 
 export interface Building {
@@ -18,8 +19,12 @@ export interface Building {
   readonly free: boolean;
   /** The player can walk through it (Bone Doors). Enemies never can. */
   readonly playerPassable: boolean;
-  /** Seconds until it can act again (Totem shot, Collector harvest). */
+  /** Seconds until it can act again (Totem shot), or until a Collector's linked corpse is taken. */
   cooldown: number;
+  /** Corpse Collector: the corpse it is pulling in, until `cooldown` runs out. */
+  link: Corpse | undefined;
+  /** Corpse Collector: the full length of the current link, in seconds. */
+  linkDuration: number;
   /** Repair paid for but not yet used, per resource (fractions of a unit). */
   repairCredit: Partial<Record<ResourceId, number>>;
 }
@@ -43,6 +48,8 @@ export function createBuilding(
     free,
     playerPassable,
     cooldown: 0,
+    link: undefined,
+    linkDuration: 0,
     repairCredit: {},
   };
 }

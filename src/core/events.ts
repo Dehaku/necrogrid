@@ -72,6 +72,8 @@ export interface GameEvents {
   'gear:crafted': { id: GearId };
   /** `id` undefined means the slot was emptied. */
   'gear:equipped': { slot: GearSlot; id: GearId | undefined };
+  /** A bolt was fired, by the necromancer or a Totem, from (x, y). */
+  'bolt:cast': { source: 'player' | 'totem'; x: number; y: number };
   /** Chain was cast. `points` runs from the necromancer through each enemy hit, in order. */
   'chain:cast': { points: { x: number; y: number }[] };
   /** A Wraith fired a shot (drives the purple muzzle flash). */

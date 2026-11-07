@@ -56,10 +56,18 @@ export const PICKUP_POPUPS = {
   lineHeight: 0.45,
 } as const;
 
-/** The gray jagged line from a Corpse Collector to the corpse it harvests. */
+/**
+ * The gray jagged line from a Corpse Collector to the corpse it is pulling in. It shows for
+ * the whole link, brightening as the take nears, then flashes and fades when it takes it.
+ */
 export const COLLECTOR_LINK = {
-  /** Seconds to fade out. */
+  /** Seconds the final flash takes to fade out. */
   fade: 0.35,
+  /** Opacity at the start and the end of a link. */
+  linkAlphaStart: 0.25,
+  linkAlphaEnd: 0.8,
+  /** Seconds between re-rolls of the jagged shape (the crackle). */
+  crackleInterval: 0.12,
   segmentLength: 0.4,
   jitter: 0.16,
   color: 'rgba(190, 190, 196, 0.9)',
@@ -89,6 +97,12 @@ export const CORPSES = {
   /** How dark a corpse is drawn compared to the living enemy (0–1). */
   darken: 0.45,
   eliteOutline: '#c9a227',
+} as const;
+
+/** Local best score (M10). */
+export const BEST_SCORE = {
+  storageKey: 'necrogrid.best',
+  newBestColor: '#ffcf5a',
 } as const;
 
 /** Section 12. Saved in local storage under `storageKey`. */

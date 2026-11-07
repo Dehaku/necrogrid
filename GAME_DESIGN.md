@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.19. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.20. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -32,6 +32,7 @@
 | 0.17 | Starting base: the Totem (solid again) and a new free Corpse Collector both go on the wall ring, placed after the walls and taking priority over them; the ring is still never fully closed. |
 | 0.18 | M9 built: Wraiths (fade-in, Lantern targeting, slow shots blocked by buildings) and Hellhounds join the roster; day-15 countdown and win screen with endless Continue; respawn after completion; Phylactery destruction ends the run; warning banners. |
 | 0.19 | Shorter run: day 75 s and night 40 s (dusk and dawn stay 10 s), and the Phylactery completes on day 7 instead of day 15. Spawns of every enemy grow each day, day and night (×2.5 by day 7), and the active cap grows with them. Brutes from day 3. Grave Lanterns slowly heal the player and repair buildings for free. Each Altar adds 50 to every resource cap. |
+| 0.20 | Corpse Collectors link to a corpse for their whole 3–5 s duration (a live jagged line) and take it at the end. M10 built: synthesized placeholder sound effects with master volume, particles, screen shake (Settings toggle), local best score on the title and end screens, and a relative-path build. |
 
 ---
 
@@ -485,15 +486,17 @@ Totems never target a Wraith that is still fading in.
 
 #### 10.2.1 Corpse Collector
 
-- When its cooldown is ready and a corpse is within 3 tiles, it harvests the nearest one instantly. The loot goes straight to the player's resources, wherever the player is.
-- After each harvest it rolls a new cooldown, uniformly between 3 and 5 s, from the seeded RNG. A newly placed Collector also starts with a random cooldown. This keeps groups of Collectors from firing in sync.
+- While it has no link and a corpse is within 3 tiles, it **links** to the nearest one that no other Collector is linked to, and rolls a link duration uniformly between 3 and 5 s from the seeded RNG. Random durations keep groups of Collectors from firing in sync.
+- When the duration runs out, it takes the corpse. The loot goes straight to the player's resources, wherever the player is. On the next tick it links to the next corpse in range, if any.
+- If the linked corpse disappears first (the player harvested it, or it faded), the link breaks and the Collector links to the next corpse with a fresh duration.
+- If the player is harvesting the corpse a Collector takes, the player's harvest stops.
 - While no corpse is in range, it checks again each tick.
 
 **Build mode controls:** B toggles build mode (it does not pause). Esc, Tab, and E also leave build mode (and do only that: no pause screen, equipment screen, or harvest). Keys 1–8 pick from the hotbar. Left click places at the ghost; holding it and dragging places on every new tile the cursor crosses (painting walls or marsh). Right click removes the building under the cursor. While build mode is on, the mouse builds instead of casting Bolt and Chain; Q, E, and R still work. The ghost is red with the reason (including "Not enough resources") when the choice cannot go there.
 
 **Build ghost:** the tooltip shows the name and cost, a one-line description of what it does, and the reason in red when it cannot be placed. The Bone Totem, Corpse Collector, and Grave Lantern ghosts also draw a dashed circle showing their reach (6, 3, and 4 tiles).
 
-**Collector link:** when a Corpse Collector harvests, a thin gray jagged line connects it to the corpse for 0.35 s.
+**Collector link:** for the whole link, a thin gray jagged line connects the Collector to its corpse. The jagged shape re-rolls every 0.12 s (a crackle), and the line brightens and thickens as the take nears. When it takes the corpse, a final line flashes and fades over 0.35 s.
 
 **Grave Lantern light:** each Lantern lights a 4-tile radius around itself at night, in addition to the player's own light.
 
@@ -574,7 +577,7 @@ Gaps in the wall ring are expected. They give enemies a route in, so the first f
 
 - **Win:** the Phylactery completes when day 7's day phase ends with it standing (section 10.4); the panel counts down 1:15 → 0:00 during that phase, then reads "Bound". The game pauses on "The Phylactery is complete" with a summary and a **Continue** button. Continue resumes the run in endless mode (the day ring shows "Day N" only).
 - **Respawn view:** while the necromancer is gone (3 s), the necromancer and their HUD are hidden, "Your soul returns to the Phylactery… N" counts down, and the camera pans to the Phylactery. Enemies ignore the dead necromancer.
-- **Lose (before completion):** player HP reaches 0, or the Phylactery is destroyed. The end screen shows the day reached, the number of corpses harvested, and the score, with a **Return to title** button. The run is no longer active, so the title screen shows no Resume.
+- **Lose (before completion):** player HP reaches 0, or the Phylactery is destroyed. The end screen shows the day reached, the number of corpses harvested, the score, and the best score (or "New best!"), with a **Return to title** button. The run is no longer active, so the title screen shows no Resume.
 - **Lose (after completion):** only if the Phylactery is destroyed. Player death is not a loss; the necromancer respawns (section 10.4). Each death costs the Phylactery 30 HP, which can destroy it.
 - **Score:** `day × 100 + kills × 2 + buildingsDestroyedByDemons × −10`. Shown on the end screen and saved locally.
 
@@ -589,7 +592,7 @@ Opened from the title or pause screen (section 8.5). Saved in local storage unde
 | Screen shake | On | On / Off | Screen shake on big hits |
 | Damage numbers | On | On / Off | Floating damage numbers |
 
-The panel opens from Settings on the title or pause screen: Up/Down choose a row, Left/Right (or the ◀ ▶ arrows) change it, Enter flips On/Off, Esc or Back returns. Every change is saved at once. Master volume and screen shake are stored now and take effect when sound and shake arrive (M10).
+The panel opens from Settings on the title or pause screen: Up/Down choose a row, Left/Right (or the ◀ ▶ arrows) change it, Enter flips On/Off, Esc or Back returns. Every change is saved at once and applies immediately.
 
 Settings change rendering and audio only. They never change the simulation, so a seed plays out the same at any settings.
 
@@ -691,6 +694,11 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 ### M10 — Polish
 - Sound effects (optional, can be stubbed), particles, screen shake on big hits, local best-score save.
 - Set Vite's `base` to `'./'` so the build works from any folder. The hosting site is not chosen yet (GitHub Pages and itch.io both serve a static build for free).
+- **Built (v0.20):**
+  - **Sound** (`src/audio/sound.ts`, values in `src/data/audio.ts`): short synthesized placeholder effects (an oscillator or filtered noise with a pitch sweep; no audio files) for bolts, Totem shots, Chain, hits, deaths, elite deaths, player and Phylactery hits, harvests, Collector takes, building, removing and destruction, Wraith shots, Mend, crafting, dusk and dawn, win, loss, and respawn. Each sound has a minimum interval so swarms do not roar. World sounds fade with distance from the view center, silent at 30 tiles. Master volume scales everything. Audio starts on the first key press or click (browser rule).
+  - **Particles** (`src/render/particles.ts`, values in `src/data/fx.ts`): enemy deaths burst in the enemy's color (more for larger corpses, gold sparks for elites), hit sparks, building debris in the building's color, soul motes rising from harvested corpses, and purple sparks when the Phylactery is hit. At most 900 at once.
+  - **Screen shake** (`src/render/shake.ts`): trauma model, offset = 12 px × trauma², decaying 1.8 per second. Added by player hits of 10+ damage (0.45), player death (0.8), buildings destroyed on screen (0.3), and Phylactery hits of 15+ damage while it is on screen (0.3). Off when Settings → Screen shake is off. It moves only the drawn view, never aiming.
+  - **Best score** (`src/ui/bestScore.ts`): saved in local storage under `necrogrid.best` (score, day, whether that run was won). Recorded on the win (score at completion) and on every loss, including an endless run ending later. Shown bottom-left on the title and pause screens, and on the end screen.
 - **Done when:** the game is shareable with another player with no setup beyond opening the page.
 
 ## 15. Technical Plan
@@ -811,11 +819,15 @@ necrogrid/
       craftMenu.ts
       equipmentScreen.ts
       titleScreen.ts         # title and pause screen, confirmation, controls and seed panels
-      endScreen.ts           # loss summary and Return to title
+      endScreen.ts           # loss and win summaries, best score
+      bestScore.ts           # local best score
+      warnings.ts            # warning banners
       menuWidgets.ts         # shared buttons, dialogs, hit tests
       healthBars.ts          # enemy and building health bars
       resourceHud.ts         # compact resource counters
       settings.ts            # settings values, storage, and panel
+    audio/
+      sound.ts               # sound effects: event mapping, rate limits, Web Audio backend
     debug/
       debugPanel.ts
       overlays.ts            # flow field and spawn map overlays
@@ -823,7 +835,9 @@ necrogrid/
       canvas.ts
       camera.ts
       lighting.ts
-      effects.ts             # attack swipes and damage numbers
+      effects.ts             # attack swipes, damage numbers, chains, popups, Collector links
+      particles.ts           # death bursts, sparks, debris, harvest motes
+      shake.ts               # screen shake
       sprites.ts             # placeholder shapes first, sprites later
     data/
       tuning.ts
@@ -838,6 +852,8 @@ necrogrid/
       controls.ts            # key bindings and their labels
       ui.ts                  # HUD, menu, and effect sizes, colors, timings
       time.ts                # day cycle phases, lighting, day ring
+      audio.ts               # sound effect definitions
+      fx.ts                  # particle and screen shake values
   tests/
     chain.test.ts
     crafting.test.ts
@@ -886,7 +902,7 @@ Record every balance change here so intent is not lost.
 - Mobile or touch controls.
 - Save-and-continue. A run ends on death before the Phylactery completes, or on Phylactery destruction.
 - Story, dialogue, or quests.
-- Procedural audio.
+- Procedural audio (generated music or adaptive soundscapes). The M10 sound effects are short synthesized placeholders, not this.
 
 ## 18. Decisions
 
@@ -955,6 +971,10 @@ Record every balance change here so intent is not lost.
 38. **Difficulty ramp:** every enemy type spawns more each day, by day and by night (section 6). Brutes from day 3, Hellhounds from day 5.
 39. **Grave Lantern aura:** slow, free heal (player) and repair (buildings and Phylactery), not stacking (section 10.2).
 40. **Altar caps:** each Altar adds 50 to every resource cap, stacking (section 9.1).
+
+**Confirmed (v0.20):**
+41. **Collector link:** a Collector shows its link for the whole 3–5 s duration, then takes the corpse (section 10.2.1).
+42. **Sound:** synthesized placeholder effects ship in M10 rather than a silent stub; recorded sounds can replace them later behind the same backend.
 
 **Open:** none right now.
 

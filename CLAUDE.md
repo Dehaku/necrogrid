@@ -10,8 +10,9 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 
 ## Current status
 
-- Milestone: **M9 done** (Wraiths with fade-in, Lantern targeting, and shots; Hellhounds from day 5; final-day completion, win screen and endless; respawn after completion; Phylactery loss on; warning banners). v0.19 tweaks: 7-day run of 135 s cycles, daily spawn growth, Brutes from day 3, Lantern heal/repair aura, Altar cap bonus. Next: M10. Update this line when a milestone is finished.
-- Before M10 a human should play one full run at 1× (GAME_DESIGN.md M9 "Done when"); the automated soak run (day 1 → completion) passes but is not a playtest.
+- Milestone: **M10 done** (sound, particles, screen shake, best score, relative-path build). All milestones in GAME_DESIGN.md section 14 are built; remaining work is playtesting, tuning, and choosing a host (GitHub Pages or itch.io). Update this line when that changes.
+- A human full run at 1× (GAME_DESIGN.md M9 "Done when") is still owed; automated full runs pass but are not a playtest.
+- Sound, particles, and shake are outputs only: `src/audio/` and `src/render/` listen to run events and must never feed back into the simulation. Re-attach them per run like `Effects`.
 - Player combat numbers come from `Game.stats` (base stats + equipped gear). Pass `stats` into Bolt, Chain, mana regen, and the spell bar; never read `BOLT.damage` etc. directly for gameplay.
 - `new Game(seed, events, { startingBase: false })` skips the free walls and Totem; use it in tests that need open ground around the Phylactery.
 - Resources change only through `Game.gain` / `Game.spend`, which emit `resources:changed` (the HUD counters depend on it). Caps come from `game.resources.cap(id)` (base cap + Altar bonus); `resourceCap(id)` is only the base.

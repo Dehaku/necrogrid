@@ -103,9 +103,11 @@ describe('Corpse Collector link', () => {
     game.gain({ flesh: 10 });
     const c = game.placeBuilding('collector', 40, 40);
     if (typeof c === 'string') throw new Error(c);
-    c.cooldown = 0;
     game.damageEnemy(game.spawnEnemy('imp', 41.5, 42.5, false), 1e6);
     game.tick(DT, idle);
+    expect(events).toHaveLength(0); // linked, not yet taken
+    expect(c.link).toBeDefined();
+    ticks(game, 5.1);
     expect(events).toHaveLength(1);
     expect(events[0]!.fromX).toBe(40.5);
     expect(events[0]!.toX).toBeCloseTo(41.5);

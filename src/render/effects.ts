@@ -10,7 +10,7 @@ import { RESOURCE_ORDER, RESOURCES, type ResourceAmounts } from '../data/resourc
 import { COLLECTOR_LINK, DAMAGE_NUMBERS, PICKUP_POPUPS, SWIPE } from '../data/ui';
 import type { EventBus, GameEvents } from '../core/events';
 import type { Point } from '../core/input';
-import { Rng } from '../core/rng';
+import { hashInts, Rng } from '../core/rng';
 import type { Camera } from './camera';
 
 interface Flash {
@@ -192,6 +192,37 @@ export class Effects {
     this.numbers = this.numbers.filter((n) => n.age < DAMAGE_NUMBERS.lifetime);
     this.chains = this.chains.filter((c) => c.age < CHAIN.fade);
     this.popups = this.popups.filter((p) => p.age < PICKUP_POPUPS.lifetime);
+  }
+
+  /**
+   * Live Collector links: a jagged gray line from each linked Collector to its corpse,
+   * re-rolled every `crackleInterval` and brightening with `progress` (0 → 1).
+   */
+  drawLiveCollectorLinks(
+    ctx: CanvasRenderingContext2D,
+    camera: Camera,
+    links: readonly { id: number; from: Point; to: Point; progress: number }[],
+    time: number,
+  ): void {
+    if (links.length === 0) return;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = COLLECTOR_LINK.color;
+    const step = Math.floor(time / COLLECTOR_LINK.crackleInterval);
+    for (const l of links) {
+      const path = jaggedPath([l.from, l.to], new Rng(hashInts(l.id, step)), COLLECTOR_LINK.segmentLength, COLLECTOR_LINK.jitter);
+      const p = Math.min(1, Math.max(0, l.progress));
+      ctx.globalAlpha = COLLECTOR_LINK.linkAlphaStart + (COLLECTOR_LINK.linkAlphaEnd - COLLECTOR_LINK.linkAlphaStart) * p;
+      ctx.lineWidth = 1 + p;
+      ctx.beginPath();
+      path.forEach((pt, i) => {
+        const s = camera.worldToScreen(pt.x, pt.y);
+        if (i === 0) ctx.moveTo(s.x, s.y);
+        else ctx.lineTo(s.x, s.y);
+      });
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** Thin gray jagged lines from Collectors to the corpses they just took, fading out. */

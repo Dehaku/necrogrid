@@ -339,7 +339,6 @@ export class Game {
     const free = options.free ?? false;
     if (!free && !this.spend(def.cost)) return 'Not enough resources';
     const building = createBuilding(this.nextBuildingId++, kind, x, y, free, options.playerPassable);
-    if (kind === 'collector') building.cooldown = this.buildRng.range(COLLECTOR.cooldownMin, COLLECTOR.cooldownMax);
     this.buildingsById.set(building.id, building);
     this.buildings.place(building.id, fp);
     this.noSpawn.add(fp, def.noSpawnRadius);
@@ -449,6 +448,10 @@ export class Game {
   /** Totems shoot and Collectors harvest (section 10.2). */
   private updateBuildings(dt: number): void {
     for (const b of this.buildingsById.values()) {
+      if (b.kind === 'collector') {
+        this.updateCollector(b, dt);
+        continue;
+      }
       b.cooldown = Math.max(0, b.cooldown - dt);
       if (b.cooldown > 0) continue;
       const center = footprintCenter(b.footprint);
@@ -457,16 +460,36 @@ export class Game {
         const target = nearestWithin(center, nearby, TOTEM.range);
         if (!target) continue;
         this.projectiles.push(totemBolt(center, target));
+        this.events.emit('bolt:cast', { source: 'totem', x: center.x, y: center.y });
         b.cooldown = TOTEM.interval;
-      } else if (b.kind === 'collector') {
-        const corpse = nearestWithin(center, this.corpses, COLLECTOR.range);
-        if (!corpse) continue;
-        if (this.harvest?.corpse === corpse) this.harvest = undefined;
-        this.events.emit('collector:collected', { fromX: center.x, fromY: center.y, toX: corpse.x, toY: corpse.y });
-        this.collectCorpse(corpse);
-        b.cooldown = this.buildRng.range(COLLECTOR.cooldownMin, COLLECTOR.cooldownMax);
       }
     }
+  }
+
+  /**
+   * Corpse Collector (section 10.2.1): links to the nearest unclaimed corpse in range for a
+   * random 3–5 s, then takes it. If the corpse is gone first (harvested by hand or faded),
+   * the link breaks and it links to the next one with a fresh duration.
+   */
+  private updateCollector(b: Building, dt: number): void {
+    if (b.link && !this.corpses.includes(b.link)) b.link = undefined;
+    const center = footprintCenter(b.footprint);
+    if (!b.link) {
+      const claimed = new Set<Corpse>();
+      for (const other of this.buildingsById.values()) if (other.link) claimed.add(other.link);
+      const corpse = nearestWithin(center, claimed.size ? this.corpses.filter((c) => !claimed.has(c)) : this.corpses, COLLECTOR.range);
+      if (!corpse) return;
+      b.link = corpse;
+      b.linkDuration = b.cooldown = this.buildRng.range(COLLECTOR.cooldownMin, COLLECTOR.cooldownMax);
+      return;
+    }
+    b.cooldown = Math.max(0, b.cooldown - dt);
+    if (b.cooldown > 0) return;
+    const corpse = b.link;
+    b.link = undefined;
+    if (this.harvest?.corpse === corpse) this.harvest = undefined;
+    this.events.emit('collector:collected', { fromX: center.x, fromY: center.y, toX: corpse.x, toY: corpse.y });
+    this.collectCorpse(corpse);
   }
 
   /** True while the player stands at an Altar: their edge within 0.5 tile of its footprint (section 10.1). */
@@ -612,7 +635,10 @@ export class Game {
       this.updateRepair(dt, command.repair ?? false);
       if (command.bolt) {
         const bolt = tryCastBolt(this.player, command.aim, this.stats);
-        if (bolt) this.projectiles.push(bolt);
+        if (bolt) {
+          this.projectiles.push(bolt);
+          this.events.emit('bolt:cast', { source: 'player', x: this.player.x, y: this.player.y });
+        }
       }
       if (command.chain) this.castChain(command.aim);
       if (command.mend) this.castMend();

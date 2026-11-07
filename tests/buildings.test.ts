@@ -237,23 +237,60 @@ describe('building behavior', () => {
     expect(near.hp).toBeLessThan(90);
   });
 
-  it('Corpse Collector harvests the nearest corpse within 3 tiles, then waits 3–5 s', () => {
+  it('Corpse Collector links to the nearest corpse within 3 tiles for 3–5 s, then takes it', () => {
     const { game } = openGame();
     const collector = game.placeBuilding('collector', 25, 25);
     if (typeof collector === 'string') throw new Error(collector);
-    collector.cooldown = 0;
     const kill = (x: number, y: number) => game.damageEnemy(game.spawnEnemy('imp', x, y, false), 1e6);
     kill(26.5, 27.5);
     kill(27.5, 27.5);
     kill(25.5, 29.6);
+    const nearest = game.corpses.find((c) => c.x === 26.5)!;
     const harvestedBefore = game.corpsesHarvested;
     game.tick(DT, cmd());
+    // Linked, not yet taken.
+    expect(collector.link).toBe(nearest);
+    expect(game.corpsesHarvested).toBe(harvestedBefore);
+    expect(collector.linkDuration).toBeGreaterThanOrEqual(3);
+    expect(collector.linkDuration).toBeLessThanOrEqual(5);
+    ticks(game, collector.linkDuration - 0.1);
+    expect(game.corpsesHarvested).toBe(harvestedBefore);
+    ticks(game, 0.15);
     expect(game.corpsesHarvested).toBe(harvestedBefore + 1);
-    expect(collector.cooldown).toBeGreaterThanOrEqual(3 - DT);
-    expect(collector.cooldown).toBeLessThanOrEqual(5);
+    expect(game.corpses).not.toContain(nearest);
     ticks(game, 5.1);
     expect(game.corpsesHarvested).toBe(harvestedBefore + 2);
     expect(game.corpses).toHaveLength(1); // the one 4.1 tiles away stays
+    expect(collector.link).toBeUndefined();
+  });
+
+  it('Corpse Collector re-links when its corpse is harvested by hand first', () => {
+    const { game } = openGame();
+    const collector = game.placeBuilding('collector', 25, 25);
+    if (typeof collector === 'string') throw new Error(collector);
+    game.damageEnemy(game.spawnEnemy('imp', 26.5, 26.5, false), 1e6);
+    game.damageEnemy(game.spawnEnemy('imp', 23.5, 25.5, false), 1e6);
+    game.tick(DT, cmd());
+    const first = collector.link!;
+    game.collectCorpse(first);
+    game.tick(DT, cmd());
+    expect(collector.link).toBeDefined();
+    expect(collector.link).not.toBe(first);
+  });
+
+  it('two Corpse Collectors never link to the same corpse', () => {
+    const { game } = openGame();
+    const a = game.placeBuilding('collector', 25, 25);
+    const b = game.placeBuilding('collector', 27, 25);
+    if (typeof a === 'string' || typeof b === 'string') throw new Error('placement');
+    game.damageEnemy(game.spawnEnemy('imp', 26.5, 26.5, false), 1e6);
+    game.tick(DT, cmd());
+    expect([a.link, b.link].filter(Boolean)).toHaveLength(1);
+    game.damageEnemy(game.spawnEnemy('imp', 26.5, 27.5, false), 1e6);
+    game.tick(DT, cmd());
+    expect(a.link).toBeDefined();
+    expect(b.link).toBeDefined();
+    expect(a.link).not.toBe(b.link);
   });
 
   it('Altar adds 4 mana/s within 5 tiles', () => {
