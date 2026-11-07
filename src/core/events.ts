@@ -1,7 +1,8 @@
 // Typed event bus. Systems talk through this instead of importing each other's internals.
 // GAME_DESIGN.md section 15.
 
-import type { EnemyId } from '../data/enemies';
+import type { CorpseSize, EnemyId } from '../data/enemies';
+import type { ResourceAmounts, ResourceId } from '../data/resources';
 import type { TileId } from '../data/terrain';
 import type { PauseReason } from './loop';
 
@@ -50,6 +51,13 @@ export interface GameEvents {
   'enemy:died': { id: number; type: EnemyId; elite: boolean; x: number; y: number };
   /** A melee enemy landed a hit; drives the swipe visual. `size` is the enemy's draw size. */
   'enemy:attacked': { x: number; y: number; angle: number; size: number; elite: boolean };
+  'resources:changed': { id: ResourceId; delta: number; total: number };
+  'corpse:spawned': { id: number; x: number; y: number; size: CorpseSize; elite: boolean };
+  /** A corpse was harvested; `loot` is what was actually added after caps. */
+  'corpse:harvested': { id: number; x: number; y: number; loot: ResourceAmounts };
+  'harvest:started': { id: number };
+  'harvest:interrupted': { id: number; reason: 'damage' | 'moved' | 'faded' };
+  'mend:cast': Record<string, never>;
   /** Chain was cast. `points` runs from the necromancer through each enemy hit, in order. */
   'chain:cast': { points: { x: number; y: number }[] };
   'run:lost': { cause: 'player' | 'phylactery'; day: number; kills: number; corpsesHarvested: number; score: number };

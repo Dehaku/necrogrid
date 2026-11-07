@@ -7,6 +7,7 @@ import { MENU, TITLE } from '../data/ui';
 import { VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
 import type { Point } from '../core/input';
 import { contains, drawBox, drawButton, hitIndex, type MenuPress, type Rect } from './menuWidgets';
+import type { SettingsPanel } from './settings';
 
 export type MenuMode = 'title' | 'pause';
 /** What the screen asks the game to do. */
@@ -55,6 +56,8 @@ export function controlsPanelRows(controls: readonly ControlBinding[] = CONTROLS
 }
 
 export class TitleScreen {
+  constructor(private readonly settingsPanel?: SettingsPanel) {}
+
   isOpen = false;
   mode: MenuMode = 'title';
   view: View = 'menu';
@@ -114,8 +117,11 @@ export class TitleScreen {
   handle(press: MenuPress): MenuResult | undefined {
     if (this.view === 'confirm') return this.handleConfirm(press);
     if (this.view === 'settings') {
-      if (press.kind === 'back' || press.kind === 'confirm') this.view = 'menu';
-      if (press.kind === 'click' && contains(this.backRect(), press.at)) this.view = 'menu';
+      if (this.settingsPanel) {
+        if (this.settingsPanel.handle(press) === 'back') this.view = 'menu';
+      } else if (press.kind === 'back' || press.kind === 'confirm' || (press.kind === 'click' && contains(this.backRect(), press.at))) {
+        this.view = 'menu';
+      }
       return undefined;
     }
 
@@ -126,6 +132,9 @@ export class TitleScreen {
         return undefined;
       case 'next':
         this.focus = (this.focus + 1) % count;
+        return undefined;
+      case 'left':
+      case 'right':
         return undefined;
       case 'back':
         return this.mode === 'pause' ? 'resume' : undefined;
@@ -158,6 +167,7 @@ export class TitleScreen {
     if (id === 'resume') return 'resume';
     if (id === 'settings') {
       this.view = 'settings';
+      this.settingsPanel?.open();
       return undefined;
     }
     if (id === 'newGame') {
@@ -172,6 +182,8 @@ export class TitleScreen {
     switch (press.kind) {
       case 'prev':
       case 'next':
+      case 'left':
+      case 'right':
         this.confirmFocus = this.confirmFocus === 0 ? 1 : 0;
         return undefined;
       case 'back':
@@ -277,6 +289,10 @@ export class TitleScreen {
   private drawSettings(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
     ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+    if (this.settingsPanel) {
+      this.settingsPanel.draw(ctx);
+      return;
+    }
     const d = this.dialogRect();
     drawBox(ctx, d);
     ctx.fillStyle = MENU.focusText;

@@ -11,7 +11,14 @@ export interface Rect {
 }
 
 /** A menu input: keyboard navigation, or a click at a logical-view point. */
-export type MenuPress = { kind: 'prev' } | { kind: 'next' } | { kind: 'confirm' } | { kind: 'back' } | { kind: 'click'; at: Point };
+export type MenuPress =
+  | { kind: 'prev' }
+  | { kind: 'next' }
+  | { kind: 'left' }
+  | { kind: 'right' }
+  | { kind: 'confirm' }
+  | { kind: 'back' }
+  | { kind: 'click'; at: Point };
 
 export function contains(rect: Rect, p: Point): boolean {
   return p.x >= rect.x && p.x <= rect.x + rect.w && p.y >= rect.y && p.y <= rect.y + rect.h;

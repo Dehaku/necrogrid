@@ -3,6 +3,7 @@
 
 import { CONTROLS } from '../data/controls';
 import { ENEMIES, type EnemyId } from '../data/enemies';
+import { RESOURCE_ORDER, RESOURCES, type ResourceId } from '../data/resources';
 import { DAY_CYCLE } from '../data/time';
 import { TIME_SCALES } from '../data/tuning';
 import { keysForAction } from '../core/input';
@@ -34,6 +35,8 @@ export interface DebugHooks {
   seed(): number | undefined;
   /** Start a new run with a given seed. */
   restartWithSeed(seed: number): void;
+  /** Add resources to the current run. */
+  grant(id: ResourceId, amount: number): void;
   /** Counts by entity type, for the stats readout. */
   entityCounts(): Record<string, number>;
   /** Extra readout lines (HP, spawn budget, ...). */
@@ -109,6 +112,12 @@ export class DebugPanel {
       </div>
       <div class="label">Combat</div>
       <div class="row"><label><input data-god type="checkbox" /> God mode</label></div>
+      <div class="label">Resources</div>
+      <div class="row">
+        <select data-grant-type>${RESOURCE_ORDER.map((id) => `<option value="${id}">${RESOURCES[id].name}</option>`).join('')}</select>
+        <button data-grant>+50</button>
+        <button data-grant-all>+50 all</button>
+      </div>
       <div class="label">Spawning</div>
       <div class="row"><label><input data-spawn-paused type="checkbox" /> Pause spawning</label></div>
       <div class="row">
@@ -147,6 +156,11 @@ export class DebugPanel {
       if (Number.isFinite(day) && day >= 1) hooks.cycle()?.jumpToDay(day);
     });
     this.bindCheckbox('[data-god]', (on) => (this.settings.godMode = on));
+    const grantType = this.query<HTMLSelectElement>('[data-grant-type]');
+    this.query('[data-grant]').addEventListener('click', () => hooks.grant(grantType.value as ResourceId, 50));
+    this.query('[data-grant-all]').addEventListener('click', () => {
+      for (const id of RESOURCE_ORDER) hooks.grant(id, 50);
+    });
     const seedInput = this.query<HTMLInputElement>('[data-seed]');
     this.query('[data-restart]').addEventListener('click', () => {
       if (/^\d+$/.test(seedInput.value.trim())) hooks.restartWithSeed(Number(seedInput.value.trim()) >>> 0);

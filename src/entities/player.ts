@@ -1,5 +1,7 @@
-// The necromancer. M1: movement, facing, terrain collision, and marsh slow (GAME_DESIGN.md section 8).
+// The necromancer: movement, facing, terrain collision, marsh slow, timers, and Mend.
+// GAME_DESIGN.md section 8.
 
+import { MEND } from '../data/spells';
 import { PLAYER, TILE_SIZE } from '../data/tuning';
 import type { Point } from '../core/input';
 import { resolveCircleCollision } from '../world/grid';
@@ -23,6 +25,10 @@ export interface Player {
   boltCooldown: number;
   /** Seconds until Chain can be cast again. */
   chainCooldown: number;
+  /** Seconds until Mend can be cast again. */
+  mendCooldown: number;
+  /** HP still to be healed by the current Mend. */
+  mendHealLeft: number;
 }
 
 export interface MoveIntent {
@@ -57,6 +63,8 @@ export function createPlayer(tileX: number, tileY: number): Player {
     invulnerable: 0,
     boltCooldown: 0,
     chainCooldown: 0,
+    mendCooldown: 0,
+    mendHealLeft: 0,
   };
 }
 
@@ -77,6 +85,13 @@ export function updatePlayer(
   player.invulnerable = Math.max(0, player.invulnerable - dt);
   player.boltCooldown = Math.max(0, player.boltCooldown - dt);
   player.chainCooldown = Math.max(0, player.chainCooldown - dt);
+  player.mendCooldown = Math.max(0, player.mendCooldown - dt);
+  if (player.mendHealLeft > 0) {
+    // Mend heals evenly over its duration; taking damage does not interrupt it.
+    const heal = Math.min(player.mendHealLeft, (MEND.heal / MEND.duration) * dt);
+    player.mendHealLeft -= heal;
+    player.hp = Math.min(player.maxHp, player.hp + heal);
+  }
 
   const dx = (move.right ? 1 : 0) - (move.left ? 1 : 0);
   const dy = (move.down ? 1 : 0) - (move.up ? 1 : 0);
@@ -96,4 +111,18 @@ export function updatePlayer(
   const ax = aim.x - player.x;
   const ay = aim.y - player.y;
   if (ax !== 0 || ay !== 0) player.facing = Math.atan2(ay, ax);
+}
+
+/** Why Mend cannot be cast now, or undefined if it can (section 8.2). */
+export function mendProblem(player: Player, flesh: number): string | undefined {
+  if (player.mendCooldown > 0) return 'Mend is recovering';
+  if (player.hp >= player.maxHp) return 'Already at full health';
+  if (flesh < MEND.fleshCost) return `Needs ${MEND.fleshCost} Flesh`;
+  return undefined;
+}
+
+/** Starts Mend's heal-over-time and cooldown. The caller pays the Flesh. */
+export function startMend(player: Player): void {
+  player.mendCooldown = MEND.cooldown;
+  player.mendHealLeft = MEND.heal;
 }

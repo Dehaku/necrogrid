@@ -35,6 +35,40 @@ export const SPELL_BAR = {
   labelColor: '#d8d0c0',
 } as const;
 
+export const RESOURCE_HUD = {
+  /** Top-left corner of the counters. */
+  x: 16,
+  y: 16,
+  rowHeight: 20,
+  /** Seconds a counter stays after its resource last changed, then fades over `fade`. */
+  linger: 3,
+  fade: 0.5,
+  /** The counters all stay visible within this many tiles of an Altar (M7). */
+  altarRadius: 5,
+} as const;
+
+export const PICKUP_POPUPS = {
+  /** Seconds a "+3 Bone" line rises and fades. */
+  lifetime: 1,
+  rise: 1,
+  lineHeight: 0.45,
+} as const;
+
+export const CORPSES = {
+  /** How dark a corpse is drawn compared to the living enemy (0–1). */
+  darken: 0.45,
+  eliteOutline: '#c9a227',
+} as const;
+
+/** Section 12. Saved in local storage under `storageKey`. */
+export const SETTINGS = {
+  storageKey: 'necrogrid.settings',
+  corpseRenderCount: { default: 300, min: 50, max: 1000, step: 50 },
+  masterVolume: { default: 70, min: 0, max: 100, step: 10 },
+  screenShake: true,
+  damageNumbers: true,
+} as const;
+
 export const DAMAGE_NUMBERS = {
   /** Seconds a number stays up. */
   lifetime: 0.6,

@@ -1,7 +1,8 @@
 // HUD drawn in screen space after the world. GAME_DESIGN.md section 8.4.
 // M2: the day ring. M4: health and mana crescents, the spell bar (Bolt).
 
-import { BOLT, CHAIN } from '../data/spells';
+import { BOLT, CHAIN, MEND } from '../data/spells';
+import { mendProblem } from '../entities/player';
 import { DAY_CYCLE, DAY_RING } from '../data/time';
 import { TILE_SIZE, VIEW_WIDTH } from '../data/tuning';
 import { CRESCENT, SPELL_BAR } from '../data/ui';
@@ -71,8 +72,8 @@ export interface SpellIcon {
   draw: (ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) => void;
 }
 
-/** The spell icons for the current state: Bolt and Chain. Mend joins in M6. */
-export function spellIcons(player: Player): SpellIcon[] {
+/** The spell icons for the current state: Bolt, Chain, and the Mend badge with the Flesh count. */
+export function spellIcons(player: Player, flesh: number): SpellIcon[] {
   return [
     {
       label: 'LMB',
@@ -103,7 +104,61 @@ export function spellIcons(player: Player): SpellIcon[] {
         ctx.stroke();
       },
     },
+    {
+      label: 'Q',
+      cooldownFraction: player.mendCooldown / MEND.cooldown,
+      // Greyed out when Mend cannot be used for any reason other than its own cooldown.
+      usable: mendProblem({ ...player, mendCooldown: 0 }, flesh) === undefined,
+      draw: (ctx, cx, cy, size) => {
+        const arm = size * 0.28;
+        const w = size * 0.11;
+        ctx.fillStyle = MEND.color;
+        ctx.fillRect(cx - w, cy - arm, w * 2, arm * 2);
+        ctx.fillRect(cx - arm, cy - w, arm * 2, w * 2);
+        // Flesh count in the corner.
+        ctx.font = '700 8px system-ui, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = '#f2ead8';
+        ctx.fillText(String(flesh), cx + size / 2 - 1, cy + size / 2);
+      },
+    },
   ];
+}
+
+/**
+ * "E Harvest" over the corpse E would harvest, or a progress ring while harvesting it.
+ * `x`, `y` are the corpse's screen position.
+ */
+export function drawHarvestPrompt(ctx: CanvasRenderingContext2D, x: number, y: number, label: string, progress: number | undefined): void {
+  if (progress !== undefined) {
+    ctx.beginPath();
+    ctx.arc(x, y, 13, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, 13, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, progress));
+    ctx.strokeStyle = '#e8e0cc';
+    ctx.stroke();
+    return;
+  }
+  const top = y - 30;
+  ctx.font = '700 11px system-ui, sans-serif';
+  const textWidth = ctx.measureText('Harvest').width;
+  const width = 16 + 6 + textWidth + 8;
+  const left = x - width / 2;
+  ctx.fillStyle = 'rgba(12, 10, 16, 0.85)';
+  ctx.fillRect(left, top, width, 18);
+  ctx.strokeStyle = 'rgba(232, 224, 204, 0.8)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(left + 3.5, top + 2.5, 13, 13);
+  ctx.fillStyle = '#f2ead8';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, left + 10, top + 9.5);
+  ctx.textAlign = 'left';
+  ctx.fillText('Harvest', left + 22, top + 9.5);
 }
 
 /** The spell bar: icons in a row, centered below the necromancer. */

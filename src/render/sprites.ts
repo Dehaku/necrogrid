@@ -3,6 +3,7 @@
 import { PHYLACTERY } from '../data/buildings';
 import { ELITE, type EnemyDef } from '../data/enemies';
 import { BOLT } from '../data/spells';
+import { CORPSES } from '../data/ui';
 import { TILE_PROPS, UNGENERATED_COLOR, type TileId } from '../data/terrain';
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
 import type { Footprint } from '../world/grid';
@@ -157,6 +158,58 @@ export function drawEnemy(
   ctx.moveTo(s * 0.3, 0);
   ctx.lineTo(s * 0.9, 0);
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** Darkens a #rrggbb or rgba() color toward black by `factor` (0 = black, 1 = unchanged). */
+function darken(color: string, factor: number): string {
+  if (color.startsWith('#')) {
+    const c = [1, 3, 5].map((i) => Math.round(parseInt(color.slice(i, i + 2), 16) * factor));
+    return `rgb(${c.join(', ')})`;
+  }
+  const m = color.match(/rgba?\(([^)]+)\)/);
+  if (!m) return color;
+  const [r, g, b] = m[1]!.split(',').map((v) => parseFloat(v));
+  return `rgb(${Math.round(r! * factor)}, ${Math.round(g! * factor)}, ${Math.round(b! * factor)})`;
+}
+
+/**
+ * A corpse: the enemy's shape, flattened and darkened, at `opacity` (it fades over the next
+ * day phase). Elite corpses get a gold outline so they read as worth harvesting.
+ */
+export function drawCorpse(
+  ctx: CanvasRenderingContext2D,
+  camera: Camera,
+  def: EnemyDef,
+  elite: boolean,
+  x: number,
+  y: number,
+  heading: number,
+  opacity: number,
+): void {
+  const p = camera.worldToScreen(x, y);
+  const margin = TILE_SIZE;
+  if (opacity <= 0 || p.x < -margin || p.y < -margin || p.x > VIEW_WIDTH + margin || p.y > VIEW_HEIGHT + margin) return;
+  const s = def.drawSize * TILE_SIZE;
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.translate(p.x, p.y);
+  ctx.rotate(heading + Math.PI / 2);
+  ctx.scale(1.15, 0.6);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, s, s, 0, 0, Math.PI * 2);
+  ctx.fillStyle = darken(def.color, CORPSES.darken);
+  ctx.fill();
+  ctx.lineWidth = elite ? 2.5 : 1;
+  ctx.strokeStyle = elite ? CORPSES.eliteOutline : 'rgba(0, 0, 0, 0.6)';
+  ctx.stroke();
+  // A pale bone mark, so corpses read as remains rather than shadows.
+  ctx.beginPath();
+  ctx.moveTo(-s * 0.4, 0);
+  ctx.lineTo(s * 0.4, 0);
+  ctx.strokeStyle = 'rgba(232, 224, 204, 0.55)';
+  ctx.lineWidth = 2;
   ctx.stroke();
   ctx.restore();
 }

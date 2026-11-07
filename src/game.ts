@@ -1,7 +1,7 @@
 // The simulation for one run: world, time, player, Phylactery, enemies, and spawning.
 // main.ts owns the browser side (canvas, input, loop) and calls tick() at 60 Hz.
 
-import { PHYLACTERY } from './data/buildings';
+import { PHYLACTERY, TERRAIN_EDITS } from './data/buildings';
 import { type EnemyId } from './data/enemies';
 import { SPAWN } from './data/spawn';
 import { CHUNK_GENERATION_RADIUS, CHUNK_SIZE, TILE } from './data/terrain';
@@ -15,8 +15,14 @@ import { chooseTarget } from './combat/targeting';
 import { SpawnDirector, type SpawnWorld } from './director/spawnDirector';
 import { createEnemy, type Enemy } from './entities/enemy';
 import { createPhylactery, PHYLACTERY_ID, phylacteryRingTiles, type Phylactery } from './entities/phylactery';
-import { createPlayer, updatePlayer, type MoveIntent, type Player, type PlayerTerrain } from './entities/player';
+import { createPlayer, mendProblem, startMend, updatePlayer, type MoveIntent, type Player, type PlayerTerrain } from './entities/player';
 import type { Projectile } from './entities/projectile';
+import { corpseExpiry, type Corpse } from './entities/corpse';
+import { HARVEST } from './data/loot';
+import { RESOURCE_ORDER, type ResourceAmounts } from './data/resources';
+import { MEND } from './data/spells';
+import { rollLoot } from './economy/lootRoll';
+import { Resources } from './economy/resources';
 import { DayCycle } from './time/dayCycle';
 import { BuildingGrid } from './world/buildingGrid';
 import { ChunkMap } from './world/chunks';
@@ -34,8 +40,9 @@ import { NoSpawnGrid } from './world/noSpawnGrid';
 import { SpatialHash } from './world/spatialHash';
 import { terrainEditProblem, terrainEditResult, type TerrainEdit } from './world/terrainEdit';
 
-/** Separate RNG stream for spawning, so other systems never shift spawn rolls. */
+/** Separate RNG streams, so one system's rolls never shift another's. */
 const SPAWN_STREAM = 0x5370;
+const LOOT_STREAM = 0x1007;
 
 export interface PlayerCommand {
   move: MoveIntent;
@@ -45,6 +52,18 @@ export interface PlayerCommand {
   bolt: boolean;
   /** Chain button pressed this tick. */
   chain: boolean;
+  /** Harvest key pressed or held (holding keeps harvesting the next corpse). */
+  harvest?: boolean;
+  /** Mend key pressed this tick. */
+  mend?: boolean;
+}
+
+/** A harvest in progress. */
+export interface HarvestState {
+  corpse: Corpse;
+  /** Seconds done so far, and seconds needed. */
+  progress: number;
+  duration: number;
 }
 
 /** How a run ended (section 11). */
@@ -72,10 +91,14 @@ export class Game {
   readonly enemies: Enemy[] = [];
   readonly enemyHash = new SpatialHash<Enemy>(NAV.hashCellSize);
   readonly projectiles: Projectile[] = [];
+  readonly resources = new Resources();
+  /** In creation order (oldest first). */
+  readonly corpses: Corpse[] = [];
+  harvest: HarvestState | undefined;
   kills = 0;
   /** Buildings destroyed by demons, for the score. Player buildings arrive in M7. */
   buildingsLost = 0;
-  /** Corpses harvested, for the end screen. Corpses arrive in M6. */
+  /** Corpses harvested (by hand; Collectors from M7 count too), for the end screen. */
   corpsesHarvested = 0;
   /** Debug: the player and the Phylactery take no damage. */
   godMode = false;
@@ -87,6 +110,8 @@ export class Game {
   lastFieldRebuild: GoalId | undefined;
 
   private readonly noBuildZone = new Set<number>();
+  private readonly lootRng: Rng;
+  private nextCorpseId = 1;
   private nextEnemyId = 1;
   private readonly neighbors: Enemy[] = [];
   private readonly playerTerrain: PlayerTerrain;
@@ -114,6 +139,7 @@ export class Game {
       phylacteryRingTiles(this.phylactery.footprint),
     );
     this.director = new SpawnDirector(new Rng(hashInts(seed, SPAWN_STREAM)));
+    this.lootRng = new Rng(hashInts(seed, LOOT_STREAM));
 
     this.playerTerrain = {
       speedMultiplierAt: (x, y) => groundSpeedMultiplier(this.map.getTile(Math.floor(x), Math.floor(y))),
@@ -132,8 +158,8 @@ export class Game {
   }
 
   /**
-   * Applies a terrain edit (player-made marsh, or filling marsh to dirt) if it is allowed.
-   * Returns the reason it is not, or undefined on success. Payment is added in M6/M7.
+   * Applies a terrain edit (player-made marsh, or filling marsh to dirt) if it is allowed and
+   * affordable, paying its cost (no refunds). Returns the reason it is not, or undefined.
    */
   editTerrain(edit: TerrainEdit, tileX: number, tileY: number): string | undefined {
     const problem = terrainEditProblem(edit, tileX, tileY, {
@@ -142,6 +168,7 @@ export class Game {
       isNoBuildZone: (x, y) => this.isNoBuildZone(x, y),
     });
     if (problem) return problem;
+    if (!this.spend(TERRAIN_EDITS[edit].cost)) return 'Not enough resources';
     const tile = terrainEditResult(edit);
     this.map.setTile(tileX, tileY, tile);
     this.events.emit('tile:changed', { tileX, tileY, tile });
@@ -150,6 +177,43 @@ export class Game {
 
   get score(): number {
     return computeScore(this.cycle.state.day, this.kills, this.buildingsLost);
+  }
+
+  /** Adds resources (up to their caps). Returns what was actually added. */
+  gain(amounts: ResourceAmounts): ResourceAmounts {
+    const added: ResourceAmounts = {};
+    for (const id of RESOURCE_ORDER) {
+      const n = this.resources.add(id, amounts[id] ?? 0);
+      if (n > 0) {
+        added[id] = n;
+        this.events.emit('resources:changed', { id, delta: n, total: this.resources.get(id) });
+      }
+    }
+    return added;
+  }
+
+  /** Spends a whole cost, or nothing if it cannot be afforded. */
+  spend(cost: ResourceAmounts): boolean {
+    if (!this.resources.spend(cost)) return false;
+    for (const id of RESOURCE_ORDER) {
+      const n = cost[id] ?? 0;
+      if (n > 0) this.events.emit('resources:changed', { id, delta: -n, total: this.resources.get(id) });
+    }
+    return true;
+  }
+
+  /** The corpse the harvest key would start on: the nearest within range, if any. */
+  harvestCandidate(): Corpse | undefined {
+    let best: Corpse | undefined;
+    let bestD: number = HARVEST.range;
+    for (const c of this.corpses) {
+      const d = Math.hypot(c.x - this.player.x, c.y - this.player.y);
+      if (d <= bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    return best;
   }
 
   tick(dt: number, command: PlayerCommand): void {
@@ -161,6 +225,9 @@ export class Game {
       if (bolt) this.projectiles.push(bolt);
     }
     if (command.chain) this.castChain(command.aim);
+    if (command.mend) this.castMend();
+    this.updateHarvest(dt, command.harvest ?? false);
+    this.expireCorpses();
     this.generateChunks();
 
     this.fields.trackPlayer(Math.floor(this.player.x), Math.floor(this.player.y));
@@ -189,6 +256,83 @@ export class Game {
     enemy.alive = false;
     this.kills++;
     this.events.emit('enemy:died', { id: enemy.id, type: enemy.type, elite: enemy.elite, x: enemy.x, y: enemy.y });
+    this.spawnCorpse(enemy);
+  }
+
+  private spawnCorpse(enemy: Enemy): void {
+    const now = this.cycle.elapsed;
+    const corpse: Corpse = {
+      id: this.nextCorpseId++,
+      x: enemy.x,
+      y: enemy.y,
+      enemyType: enemy.type,
+      size: enemy.def.corpseSize,
+      elite: enemy.elite,
+      heading: enemy.heading,
+      createdAt: now,
+      expiresAt: corpseExpiry(now),
+      loot: rollLoot(enemy.def.corpseSize, enemy.elite, this.lootRng),
+    };
+    this.corpses.push(corpse);
+    this.events.emit('corpse:spawned', { id: corpse.id, x: corpse.x, y: corpse.y, size: corpse.size, elite: corpse.elite });
+  }
+
+  private expireCorpses(): void {
+    const now = this.cycle.elapsed;
+    let write = 0;
+    for (const c of this.corpses) if (c.expiresAt > now) this.corpses[write++] = c;
+    this.corpses.length = write;
+    if (this.harvest && this.harvest.corpse.expiresAt <= now) this.interruptHarvest('faded');
+  }
+
+  /**
+   * Harvesting (section 9.3): pressing or holding the key starts on the nearest corpse in
+   * range. It completes after the size's duration unless the player takes damage, moves out
+   * of range, or the corpse fades. While the key is held, the next corpse starts right away.
+   */
+  private updateHarvest(dt: number, keyDown: boolean): void {
+    if (!this.harvest && keyDown) {
+      const corpse = this.harvestCandidate();
+      if (corpse) {
+        this.harvest = { corpse, progress: 0, duration: HARVEST.duration[corpse.size] };
+        this.events.emit('harvest:started', { id: corpse.id });
+      }
+    }
+    const h = this.harvest;
+    if (!h) return;
+    if (Math.hypot(h.corpse.x - this.player.x, h.corpse.y - this.player.y) > HARVEST.range) {
+      this.interruptHarvest('moved');
+      return;
+    }
+    h.progress += dt;
+    if (h.progress < h.duration) return;
+    this.harvest = undefined;
+    this.collectCorpse(h.corpse);
+  }
+
+  /** Gives a corpse's loot and removes it. Used by harvesting (and Corpse Collectors in M7). */
+  collectCorpse(corpse: Corpse): ResourceAmounts {
+    const index = this.corpses.indexOf(corpse);
+    if (index < 0) return {};
+    this.corpses.splice(index, 1);
+    const added = this.gain(corpse.loot);
+    this.corpsesHarvested++;
+    this.events.emit('corpse:harvested', { id: corpse.id, x: corpse.x, y: corpse.y, loot: added });
+    return added;
+  }
+
+  private interruptHarvest(reason: 'damage' | 'moved' | 'faded'): void {
+    if (!this.harvest) return;
+    const id = this.harvest.corpse.id;
+    this.harvest = undefined;
+    this.events.emit('harvest:interrupted', { id, reason });
+  }
+
+  private castMend(): void {
+    if (mendProblem(this.player, this.resources.get('flesh'))) return;
+    this.spend({ flesh: MEND.fleshCost });
+    startMend(this.player);
+    this.events.emit('mend:cast', {});
   }
 
   spawnEnemy(type: EnemyId, x: number, y: number, elite: boolean): Enemy {
@@ -358,6 +502,7 @@ export class Game {
     this.player.hp = Math.max(0, this.player.hp - amount);
     this.player.invulnerable = PLAYER.invulnerability;
     this.events.emit('player:damaged', { amount, hp: this.player.hp });
+    this.interruptHarvest('damage');
     if (this.player.hp <= 0) this.lose('player');
   }
 

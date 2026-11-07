@@ -15,12 +15,18 @@ import { Camera } from './render/camera';
 import { GameCanvas } from './render/canvas';
 import { Effects } from './render/effects';
 import { Lighting } from './render/lighting';
-import { drawBolt, drawEnemy, drawPhylactery, drawPlayer, drawTerrain } from './render/sprites';
+import { drawBolt, drawCorpse, drawEnemy, drawPhylactery, drawPlayer, drawTerrain } from './render/sprites';
+import { ENEMIES } from './data/enemies';
+import type { ResourceId } from './data/resources';
+import { corpseOpacity, corpsesToDraw } from './entities/corpse';
 import { EndScreen } from './ui/endScreen';
+import { EquipmentScreen } from './ui/equipmentScreen';
 import { drawHealthBar } from './ui/healthBars';
-import { drawCrescents, drawDayRing, drawSpellBar, spellIcons } from './ui/hud';
+import { drawCrescents, drawDayRing, drawHarvestPrompt, drawSpellBar, spellIcons } from './ui/hud';
 import type { MenuPress } from './ui/menuWidgets';
 import { drawAutoPauseOverlay } from './ui/pauseOverlay';
+import { ResourceHud } from './ui/resourceHud';
+import { loadSettings, saveSettings, SettingsPanel, type Settings } from './ui/settings';
 import { TitleScreen, type MenuResult } from './ui/titleScreen';
 
 const canvasElement = document.querySelector<HTMLCanvasElement>('#game');
@@ -35,8 +41,30 @@ const input = new Input();
 const loop = new FixedStepLoop({ tickRate: TICK_RATE, maxFrameTime: MAX_FRAME_TIME });
 const pause = new PauseState();
 const camera = new Camera();
-const titleScreen = new TitleScreen();
+const resourceHud = new ResourceHud();
+
+/** Local storage, if the browser allows it (private windows and blocked storage may not). */
+function storage(): Storage | undefined {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+function applySettings(settings: Settings): void {
+  effects.showDamageNumbers = settings.damageNumbers;
+}
+
+const settingsPanel = new SettingsPanel(loadSettings(storage()), (settings) => {
+  saveSettings(storage(), settings);
+  applySettings(settings);
+});
+applySettings(settingsPanel.settings);
+
+const titleScreen = new TitleScreen(settingsPanel);
 const endScreen = new EndScreen();
+const equipmentScreen = new EquipmentScreen();
 
 /** The current run. Undefined on the title screen when no run is active. */
 let game: Game | undefined;
@@ -49,7 +77,12 @@ const keys = {
   pause: new Set(keysForAction(CONTROLS, 'pause')),
   menuPrev: new Set(keysForAction(CONTROLS, 'menuPrev')),
   menuNext: new Set(keysForAction(CONTROLS, 'menuNext')),
+  menuLeft: new Set(keysForAction(CONTROLS, 'menuLeft')),
+  menuRight: new Set(keysForAction(CONTROLS, 'menuRight')),
   menuConfirm: new Set(keysForAction(CONTROLS, 'menuConfirm')),
+  equipment: new Set(keysForAction(CONTROLS, 'equipment')),
+  harvest: keysForAction(CONTROLS, 'harvest'),
+  mend: keysForAction(CONTROLS, 'mend'),
 };
 const boltButtons = buttonsForAction(CONTROLS, 'bolt');
 const chainButtons = buttonsForAction(CONTROLS, 'chain');
@@ -60,6 +93,7 @@ const debugPanel = debugEnabled
       cycle: () => game?.cycle,
       seed: () => game?.seed,
       restartWithSeed: (seed) => startRun(seed),
+      grant: (id, amount) => game?.gain({ [id]: amount }),
       entityCounts: () =>
         game ? { chunks: game.map.chunkCount, enemies: game.enemies.length, bolts: game.projectiles.length, ...game.enemyCounts() } : {},
       extraReadout: () =>
@@ -67,7 +101,8 @@ const debugPanel = debugEnabled
           ? [
               `Player HP ${game.player.hp.toFixed(0)} / ${game.player.maxHp}  mana ${game.player.mana.toFixed(0)}`,
               `Phylactery ${game.phylactery.hp.toFixed(0)} / ${game.phylactery.maxHp}`,
-              `Kills ${game.kills}  score ${game.score}`,
+              `Kills ${game.kills}  score ${game.score}  harvested ${game.corpsesHarvested}`,
+              `Corpses ${game.corpses.length}  harvesting ${game.harvest ? `${game.harvest.progress.toFixed(1)}/${game.harvest.duration}` : '-'}`,
               `Budget ${game.director.budget.toFixed(2)}  next pack ${game.director.pendingPackSize ?? '-'}`,
             ]
           : [],
@@ -79,13 +114,15 @@ function runActive(): boolean {
 }
 
 function menusOpen(): boolean {
-  return titleScreen.isOpen || endScreen.isOpen;
+  return titleScreen.isOpen || endScreen.isOpen || equipmentScreen.isOpen;
 }
 
 function startRun(seed: number = newRunSeed(location.search)): void {
   const events = new EventBus<GameEvents>();
   game = new Game(seed, events);
   effects.attach(events);
+  resourceHud.attach(events);
+  equipmentScreen.close();
   events.on('run:lost', (outcome) => {
     endScreen.open(outcome);
     pause.pause('menu');
@@ -104,6 +141,7 @@ function openTitle(): void {
   game = undefined;
   effects.detach();
   endScreen.close();
+  equipmentScreen.close();
   titleScreen.open('title', performance.now());
   pause.pause('menu');
 }
@@ -129,6 +167,8 @@ function toMenuPress(press: { key?: string; button?: number }): MenuPress | unde
   if (press.key === undefined) return undefined;
   if (keys.menuPrev.has(press.key)) return { kind: 'prev' };
   if (keys.menuNext.has(press.key)) return { kind: 'next' };
+  if (keys.menuLeft.has(press.key)) return { kind: 'left' };
+  if (keys.menuRight.has(press.key)) return { kind: 'right' };
   if (keys.menuConfirm.has(press.key)) return { kind: 'confirm' };
   if (keys.pause.has(press.key)) return { kind: 'back' };
   return undefined;
@@ -146,6 +186,14 @@ input.interceptPress = (press) => {
     if (menuPress) applyMenuResult(titleScreen.handle(menuPress));
     return true;
   }
+  if (equipmentScreen.isOpen) {
+    // Tab or Esc closes it; everything else is swallowed while it is open.
+    if (press.key !== undefined && (keys.equipment.has(press.key) || keys.pause.has(press.key))) {
+      equipmentScreen.close();
+      pause.resume('menu');
+    }
+    return true;
+  }
   // The press that resumes from auto-pause is consumed, so it does nothing else.
   if (pause.resume('auto')) return true;
   if (!game) return false;
@@ -159,6 +207,12 @@ input.interceptPress = (press) => {
   }
   if (press.key !== undefined && keys.pause.has(press.key) && runActive()) {
     openPauseScreen();
+    return true;
+  }
+  if (press.key !== undefined && keys.equipment.has(press.key) && runActive()) {
+    equipmentScreen.open();
+    pause.pause('menu');
+    input.clearAll();
     return true;
   }
   return false;
@@ -196,8 +250,11 @@ function tick(dt: number): void {
     aim: camera.screenToWorld(input.mouse.x, input.mouse.y),
     bolt: boltButtons.some((b) => input.isButtonDown(b)),
     chain: chainButtons.some((b) => input.wasButtonPressed(b)),
+    harvest: input.anyKeyDown(keys.harvest) || keys.harvest.some((k) => input.wasKeyPressed(k)),
+    mend: keys.mend.some((k) => input.wasKeyPressed(k)),
   });
   effects.advance(dt);
+  resourceHud.advance(dt);
   input.endTick();
 
   debugPanel?.recordTick(performance.now() - start);
@@ -218,6 +275,10 @@ function drawRun(run: Game): void {
 
   drawTerrain(ctx, camera, run.map);
   drawPhylactery(ctx, camera, run.phylactery.footprint);
+  // Only the newest N corpses are drawn (Settings → Corpse render count). Older ones still exist.
+  for (const c of corpsesToDraw(run.corpses, settingsPanel.settings.corpseRenderCount)) {
+    drawCorpse(ctx, camera, ENEMIES[c.enemyType], c.elite, c.x, c.y, c.heading, corpseOpacity(c, time));
+  }
   for (const e of run.enemies) {
     drawEnemy(ctx, camera, e.def, e.elite, lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha), e.heading, time);
   }
@@ -237,11 +298,23 @@ function drawRun(run: Game): void {
     const p = camera.worldToScreen(lerp(e.prevX, e.x, alpha), lerp(e.prevY, e.y, alpha));
     drawHealthBar(ctx, p.x, p.y - e.def.drawSize * TILE_SIZE, 1, e.hp, e.maxHp);
   }
+  const target = run.harvest?.corpse ?? run.harvestCandidate();
+  if (target) {
+    const p = camera.worldToScreen(target.x, target.y);
+    const keyLabel = CONTROLS.find((c) => c.action === 'harvest')?.label ?? 'E';
+    drawHarvestPrompt(ctx, p.x, p.y, keyLabel, run.harvest ? run.harvest.progress / run.harvest.duration : undefined);
+  }
   effects.drawOverlay(ctx, camera);
   drawCrescents(ctx, me.x, me.y, player);
-  drawSpellBar(ctx, me.x, me.y, spellIcons(player));
+  drawSpellBar(ctx, me.x, me.y, spellIcons(player, run.resources.get('flesh')));
   drawDayRing(ctx, run.cycle.state);
+  const amount = (id: ResourceId) => run.resources.get(id);
+  resourceHud.draw(ctx, amount, equipmentScreen.isOpen);
   if (settings?.spawnOverlay) drawSpawnInset(ctx, run);
+  if (equipmentScreen.isOpen) {
+    equipmentScreen.draw(ctx, amount);
+    resourceHud.draw(ctx, amount, true);
+  }
 }
 
 function render(now: number): void {

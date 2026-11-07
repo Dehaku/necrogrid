@@ -50,6 +50,7 @@ describe('terrain edits', () => {
     const game = new Game(1, events);
     const changes: number[] = [];
     events.on('tile:changed', (e) => changes.push(e.tile));
+    game.gain({ flesh: 20, ichor: 2 });
     game.map.setTile(5, 5, TILE.grass);
     game.map.setTile(6, 5, TILE.dirt);
     expect(game.editTerrain('marsh', 5, 5)).toBeUndefined();
@@ -57,10 +58,24 @@ describe('terrain edits', () => {
     expect(game.map.getTile(5, 5)).toBe(TILE.marsh);
     expect(game.map.getTile(6, 5)).toBe(TILE.marsh);
     expect(changes).toEqual([TILE.marsh, TILE.marsh]);
+    // 10 Flesh + 1 Ichor each.
+    expect(game.resources.get('flesh')).toBe(0);
+    expect(game.resources.get('ichor')).toBe(0);
+  });
+
+  it('costs 5 Bone + 5 Flesh to fill, and refuses when you cannot pay', () => {
+    const game = quietGame();
+    game.map.setTile(7, 8, TILE.marsh);
+    expect(game.editTerrain('fill', 7, 8)).toBe('Not enough resources');
+    expect(game.map.getTile(7, 8)).toBe(TILE.marsh);
+    game.gain({ bone: 5, flesh: 5 });
+    expect(game.editTerrain('fill', 7, 8)).toBeUndefined();
+    expect(game.resources.snapshot()).toMatchObject({ bone: 0, flesh: 0 });
   });
 
   it('fills any marsh, wild or player-made, into dirt', () => {
     const game = quietGame();
+    game.gain({ bone: 100, flesh: 100, ichor: 10 });
     game.map.setTile(7, 7, TILE.marsh); // stands in for wild marsh
     expect(game.editTerrain('fill', 7, 7)).toBeUndefined();
     expect(game.map.getTile(7, 7)).toBe(TILE.dirt);
@@ -70,8 +85,9 @@ describe('terrain edits', () => {
     expect(game.map.getTile(8, 7)).toBe(TILE.dirt);
   });
 
-  it('refuses edits that break the rules', () => {
+  it('refuses edits that break the rules, without charging for them', () => {
     const game = quietGame();
+    game.gain({ bone: 100, flesh: 100, ichor: 10 });
     game.map.setTile(9, 9, TILE.rock);
     expect(game.editTerrain('marsh', 9, 9)).toBe('Marsh needs grass or dirt');
     expect(game.editTerrain('fill', 9, 9)).toBe('Only marsh can be filled');
@@ -80,8 +96,10 @@ describe('terrain edits', () => {
     // The Phylactery's own tiles and its 16-tile ring.
     expect(game.editTerrain('marsh', 0, 0)).toBe('A building is in the way');
     expect(game.editTerrain('marsh', 0, 2)).toBe('Too close to the Phylactery');
-    expect(game.editTerrain('marsh', 3, 3)).toBeUndefined();
     expect(game.editTerrain('marsh', 5000, 5000)).toBe('Not explored yet');
+    expect(game.resources.snapshot()).toMatchObject({ bone: 100, flesh: 100, ichor: 10 });
+    game.map.setTile(3, 3, TILE.grass);
+    expect(game.editTerrain('marsh', 3, 3)).toBeUndefined();
   });
 
   it('makes a filled tile buildable again (marsh is not buildable)', async () => {

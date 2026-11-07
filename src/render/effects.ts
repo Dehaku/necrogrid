@@ -6,11 +6,20 @@
 
 import { CHAIN } from '../data/spells';
 import { TILE_SIZE } from '../data/tuning';
-import { DAMAGE_NUMBERS, SWIPE } from '../data/ui';
+import { RESOURCE_ORDER, RESOURCES } from '../data/resources';
+import { DAMAGE_NUMBERS, PICKUP_POPUPS, SWIPE } from '../data/ui';
 import type { EventBus, GameEvents } from '../core/events';
 import type { Point } from '../core/input';
 import { Rng } from '../core/rng';
 import type { Camera } from './camera';
+
+interface Popup {
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  age: number;
+}
 
 interface ChainBolt {
   /** Jagged world-space path through every link. */
@@ -101,6 +110,7 @@ export class Effects {
   private swipes: Swipe[] = [];
   private numbers: DamageNumber[] = [];
   private chains: ChainBolt[] = [];
+  private popups: Popup[] = [];
   /** Visual-only randomness (chain jaggedness). Separate from the simulation's RNG streams. */
   private readonly visualRng = new Rng(0x7a11);
   private unsubscribe: (() => void)[] = [];
@@ -116,6 +126,22 @@ export class Effects {
         this.numbers.push({ x: e.x, y: e.y - 0.4, text: String(Math.round(e.amount)), age: 0 }),
       ),
       events.on('chain:cast', (e) => this.chains.push({ path: jaggedPath(e.points, this.visualRng), age: 0 })),
+      // "+3 Bone" style lines over the corpse, one per resource gained.
+      events.on('corpse:harvested', (e) => {
+        let line = 0;
+        for (const id of RESOURCE_ORDER) {
+          const n = e.loot[id];
+          if (!n) continue;
+          this.popups.push({
+            x: e.x,
+            y: e.y - 0.5 - line * PICKUP_POPUPS.lineHeight,
+            text: `+${n} ${RESOURCES[id].name}`,
+            color: RESOURCES[id].color,
+            age: 0,
+          });
+          line++;
+        }
+      }),
     ];
   }
 
@@ -125,15 +151,35 @@ export class Effects {
     this.swipes = [];
     this.numbers = [];
     this.chains = [];
+    this.popups = [];
   }
 
   advance(dt: number): void {
     for (const s of this.swipes) s.age += dt;
     for (const n of this.numbers) n.age += dt;
     for (const c of this.chains) c.age += dt;
+    for (const p of this.popups) p.age += dt;
     this.swipes = this.swipes.filter((s) => s.age < SWIPE.duration);
     this.numbers = this.numbers.filter((n) => n.age < DAMAGE_NUMBERS.lifetime);
     this.chains = this.chains.filter((c) => c.age < CHAIN.fade);
+    this.popups = this.popups.filter((p) => p.age < PICKUP_POPUPS.lifetime);
+  }
+
+  private drawPopups(ctx: CanvasRenderingContext2D, camera: Camera): void {
+    ctx.font = '700 13px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 3;
+    for (const p of this.popups) {
+      const t = p.age / PICKUP_POPUPS.lifetime;
+      const s = camera.worldToScreen(p.x, p.y - PICKUP_POPUPS.rise * t);
+      ctx.globalAlpha = 1 - t * t;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.strokeText(p.text, s.x, s.y);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, s.x, s.y);
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** Chain links: a wide glow under a thin bright core, fading out. Drawn over the lighting, like magic. */
@@ -183,6 +229,7 @@ export class Effects {
   /** Chain links and damage numbers, drawn over everything in the world (after lighting). */
   drawOverlay(ctx: CanvasRenderingContext2D, camera: Camera): void {
     this.drawChains(ctx, camera);
+    this.drawPopups(ctx, camera);
     if (!this.showDamageNumbers) return;
     ctx.font = '700 13px system-ui, sans-serif';
     ctx.textAlign = 'center';

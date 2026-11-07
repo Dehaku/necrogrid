@@ -1,4 +1,14 @@
-// Spell values. Data only. GAME_DESIGN.md section 8.1. Mend (M6) joins later.
+// Spell values. Data only. GAME_DESIGN.md sections 8.1 (Bolt, Chain) and 8.2 (Mend).
+
+export const MEND = {
+  /** Flesh spent per cast. */
+  fleshCost: 5,
+  /** HP healed in total, applied evenly over `duration` seconds. */
+  heal: 25,
+  duration: 1,
+  cooldown: 4,
+  color: '#d27a7a',
+} as const;
 
 export const CHAIN = {
   /** The first target is the nearest enemy within this many tiles of the cursor. */

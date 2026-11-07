@@ -22,6 +22,8 @@ export type ControlAction =
   | 'debug'
   | 'menuPrev'
   | 'menuNext'
+  | 'menuLeft'
+  | 'menuRight'
   | 'menuConfirm';
 
 export interface ControlBinding {
@@ -59,12 +61,20 @@ export const CONTROLS: readonly ControlBinding[] = [
   { action: 'pause', keys: ['Escape'], mouseButtons: [], label: 'Esc', description: 'Pause' },
   { action: 'debug', keys: ['Backquote'], mouseButtons: [], label: '`', description: 'Debug panel (?debug only)' },
   {
-    action: 'menuPrev', keys: ['ArrowUp', 'ArrowLeft', 'KeyW'], mouseButtons: [], label: '↑',
+    action: 'menuPrev', keys: ['ArrowUp', 'KeyW'], mouseButtons: [], label: '↑',
     description: 'Previous menu item', menuOnly: true,
   },
   {
-    action: 'menuNext', keys: ['ArrowDown', 'ArrowRight', 'KeyS'], mouseButtons: [], label: '↓',
+    action: 'menuNext', keys: ['ArrowDown', 'KeyS'], mouseButtons: [], label: '↓',
     description: 'Next menu item', menuOnly: true,
+  },
+  {
+    action: 'menuLeft', keys: ['ArrowLeft', 'KeyA'], mouseButtons: [], label: '←',
+    description: 'Decrease a setting / left choice', menuOnly: true,
+  },
+  {
+    action: 'menuRight', keys: ['ArrowRight', 'KeyD'], mouseButtons: [], label: '→',
+    description: 'Increase a setting / right choice', menuOnly: true,
   },
   {
     action: 'menuConfirm', keys: ['Enter', 'NumpadEnter', 'Space'], mouseButtons: [], label: 'Enter',

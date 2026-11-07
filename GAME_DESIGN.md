@@ -394,7 +394,7 @@ One screen, `src/ui/titleScreen.ts`, serves as both the title screen and the pau
 | **New Game** | Always | Starts a new run. If a run is active, asks for confirmation first (below) |
 | **Settings** | Always | Opens Settings (section 12). Esc returns to this screen |
 
-- Buttons work with the mouse, and with Up/Down (also Left/Right and W/S) plus Enter or Space. The top button is focused when the screen opens. Menu keys are bindings in `src/data/controls.ts` marked `menuOnly`, so the controls panel leaves them out.
+- Buttons work with the mouse, and with Up/Down (also W/S) plus Enter or Space. Left/Right (also A/D) change settings and move between Abandon and Cancel. The top button is focused when the screen opens. Menu keys are bindings in `src/data/controls.ts` marked `menuOnly`, so the controls panel leaves them out.
 - While any screen is open, every key and click goes to it and never reaches the game.
 - **Confirmation:** New Game during an active run shows "Abandon the current run?" with **Abandon** and **Cancel**. Cancel is focused, and Esc means Cancel. Abandon ends the current run with no score saved and starts a new one.
 
@@ -440,7 +440,11 @@ The loot table lives in `src/data/loot.ts`, keyed by corpse size. Elite corpses 
 ### 9.3 Harvesting
 
 - Stand within 1 tile of a corpse and press **E**. Harvest takes 0.6 s (small), 1.0 s (medium), 1.6 s (large).
-- Harvesting is interrupted if the player takes damage or moves more than 1 tile away.
+- Holding **E** keeps going: when one harvest finishes, the nearest corpse still in range starts at once.
+- Harvesting is interrupted if the player takes damage (a hit absorbed by invulnerability or god mode does not count), moves more than 1 tile away, or the corpse fades out.
+- Loot is rolled when the enemy dies (seeded loot stream), so a hand harvest and a Corpse Collector give the same thing.
+- While harvesting, a ring around the corpse fills up; otherwise the "E Harvest" prompt marks the corpse E would take.
+- Corpses are drawn as the enemy's shape, flattened and darkened, fading with their opacity. Elite corpses have a gold outline.
 - Harvesting is possible at night and during the day. Daytime harvesting is risky, which is the design intent.
 - Corpse Collectors (section 10.2.1) harvest automatically.
 
@@ -469,7 +473,7 @@ The loot table lives in `src/data/loot.ts`, keyed by corpse size. Elite corpses 
 - Neither is refunded and neither has HP; they change the tile itself.
 - Marsh can be placed only on grass or dirt, not on a building, and not in the no-build zone around the Phylactery (section 10.4). Fill works on any marsh tile.
 - Units standing on the tile do not block either edit.
-- Rules live in `src/world/terrainEdit.ts`, costs in `TERRAIN_EDITS` in `src/data/buildings.ts`. Payment arrives with resources (M6) and placement with build mode (M7).
+- Rules live in `src/world/terrainEdit.ts`, costs in `TERRAIN_EDITS` in `src/data/buildings.ts`. `Game.editTerrain` checks the rules, then charges the cost (nothing is charged for a refused edit). Placement from build mode arrives in M7.
 
 Totems never target a Wraith that is still fading in.
 
@@ -563,6 +567,8 @@ Opened from the title or pause screen (section 8.5). Saved in local storage unde
 | Screen shake | On | On / Off | Screen shake on big hits |
 | Damage numbers | On | On / Off | Floating damage numbers |
 
+The panel opens from Settings on the title or pause screen: Up/Down choose a row, Left/Right (or the ◀ ▶ arrows) change it, Enter flips On/Off, Esc or Back returns. Every change is saved at once. Master volume and screen shake are stored now and take effect when sound and shake arrive (M10).
+
 Settings change rendering and audio only. They never change the simulation, so a seed plays out the same at any settings.
 
 ## 13. Debug Panel
@@ -584,7 +590,7 @@ Testing a full run takes about an hour, so the build needs debug tools from earl
 | Spawn overlay | An inset map (bottom-right, ±52 tiles around the player, because the rings are off screen) showing both spawn rings, the view and its margin, no-spawn tiles, enemies, and tried pack centers: green passed, red failed | M3 |
 | Pause spawning | Stop the spawn director | M3 |
 | God mode | Player and Phylactery take no damage | M4 |
-| Grant resources | Add 50 of any resource | M6 |
+| Grant resources | Add 50 of any resource, or 50 of all four | M6 |
 | Unlock all gear | Unlock every item in section 10.3 | M8 |
 
 Time scale runs more fixed 1/60 s steps per frame; it never changes the step size. That keeps sped-up runs deterministic.
@@ -770,9 +776,8 @@ necrogrid/
       targeting.ts           # target selectors and hysteresis
     economy/
       resources.ts           # resource counters and caps
-      harvest.ts
       lootRoll.ts            # rolls loot from src/data/loot.ts
-      collector.ts
+      collector.ts           # (M7)
     crafting/
       crafting.ts            # crafting logic, reads src/data/recipes.ts
       unlocks.ts             # unlocked gear and equipped slots
@@ -785,7 +790,8 @@ necrogrid/
       endScreen.ts           # loss summary and Return to title
       menuWidgets.ts         # shared buttons, dialogs, hit tests
       healthBars.ts          # enemy and building health bars
-      settings.ts
+      resourceHud.ts         # compact resource counters
+      settings.ts            # settings values, storage, and panel
     debug/
       debugPanel.ts
       overlays.ts            # flow field and spawn map overlays
@@ -802,7 +808,8 @@ necrogrid/
       recipes.ts
       spells.ts              # Bolt, Chain, Mend
       spawn.ts
-      loot.ts
+      loot.ts                # loot table, elite loot, harvest times
+      resources.ts           # resource types, colors, caps
       terrain.ts             # map generation tuning (coverage, cluster sizes)
       controls.ts            # key bindings and their labels
       ui.ts                  # HUD, menu, and effect sizes, colors, timings
