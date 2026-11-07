@@ -37,8 +37,20 @@ export const NAV = {
   hashCellSize: 2,
 } as const;
 
+/** Score = day × perDay + kills × perKill + buildings destroyed by demons × perBuildingLost (section 11). */
+export const SCORE = {
+  perDay: 100,
+  perKill: 2,
+  perBuildingLost: -10,
+} as const;
+
 export const PLAYER = {
   maxHp: 100,
+  maxMana: 100,
+  /** Mana per second. */
+  manaRegen: 8,
+  /** Seconds of invulnerability after taking a hit. */
+  invulnerability: 0.5,
   /** Pixels per second. */
   moveSpeed: 120,
   /** Collision radius in tiles. */

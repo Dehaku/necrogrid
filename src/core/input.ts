@@ -110,6 +110,11 @@ export function keysForAction(controls: readonly ControlBinding[], action: Contr
   return controls.filter((c) => c.action === action).flatMap((c) => c.keys);
 }
 
+/** The mouse buttons bound to an action. */
+export function buttonsForAction(controls: readonly ControlBinding[], action: ControlAction): number[] {
+  return controls.filter((c) => c.action === action).flatMap((c) => c.mouseButtons);
+}
+
 /** Every keyboard code that appears in the bindings; the browser default is suppressed for these. */
 export function boundKeys(controls: readonly ControlBinding[]): Set<string> {
   return new Set(controls.flatMap((c) => c.keys));

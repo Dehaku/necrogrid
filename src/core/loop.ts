@@ -39,14 +39,19 @@ export class FixedStepLoop {
     return ticks;
   }
 
+  /** Drops leftover time, e.g. when a new run starts. */
+  reset(): void {
+    this.accumulator = 0;
+  }
+
   /** How far into the next tick the accumulator is (0–1), for render interpolation. */
   get alpha(): number {
     return Math.min(this.accumulator / this.dt, 1);
   }
 }
 
-/** Why the simulation is paused. Menus add their own reasons in later milestones. */
-export type PauseReason = 'auto';
+/** Why the simulation is paused: lost focus, or a menu/screen is open. */
+export type PauseReason = 'auto' | 'menu';
 
 /** The simulation is paused while any reason is active. */
 export class PauseState {

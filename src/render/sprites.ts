@@ -2,6 +2,7 @@
 
 import { PHYLACTERY } from '../data/buildings';
 import { ELITE, type EnemyDef } from '../data/enemies';
+import { BOLT } from '../data/spells';
 import { TILE_PROPS, UNGENERATED_COLOR, type TileId } from '../data/terrain';
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
 import type { Footprint } from '../world/grid';
@@ -160,17 +161,39 @@ export function drawEnemy(
   ctx.restore();
 }
 
-/** The necromancer: a square rotated to face the aim direction, with a marker on its front. */
+/** A bolt: a glowing violet dot with a short trail back to its previous position. */
+export function drawBolt(ctx: CanvasRenderingContext2D, camera: Camera, x: number, y: number, prevX: number, prevY: number): void {
+  const p = camera.worldToScreen(x, y);
+  const tail = camera.worldToScreen(prevX, prevY);
+  ctx.strokeStyle = BOLT.glowColor;
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(tail.x, tail.y);
+  ctx.lineTo(p.x, p.y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+  ctx.fillStyle = BOLT.color;
+  ctx.fill();
+}
+
+/**
+ * The necromancer: a square rotated to face the aim direction, with a marker on its front.
+ * `blink` (during invulnerability) draws it half transparent.
+ */
 export function drawPlayer(
   ctx: CanvasRenderingContext2D,
   camera: Camera,
   x: number,
   y: number,
   facing: number,
+  blink = false,
 ): void {
   const p = camera.worldToScreen(x, y);
   const half = TILE_SIZE * 0.45;
   ctx.save();
+  if (blink) ctx.globalAlpha = 0.45;
   ctx.translate(p.x, p.y);
   ctx.rotate(facing);
   ctx.fillStyle = PLAYER_COLOR;

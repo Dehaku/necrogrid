@@ -22,13 +22,17 @@ export interface DebugSettings {
   spawnElite: boolean;
   flowOverlay: 'off' | GoalId;
   spawnOverlay: boolean;
+  /** The player and the Phylactery take no damage. */
+  godMode: boolean;
 }
 
 export interface DebugHooks {
   loop: FixedStepLoop;
-  cycle: DayCycle;
-  seed: number;
-  /** Restart the run with a given seed. */
+  /** The current run's cycle, or undefined when no run is active. */
+  cycle(): DayCycle | undefined;
+  /** The current run's seed, or undefined. */
+  seed(): number | undefined;
+  /** Start a new run with a given seed. */
   restartWithSeed(seed: number): void;
   /** Counts by entity type, for the stats readout. */
   entityCounts(): Record<string, number>;
@@ -65,6 +69,7 @@ export class DebugPanel {
     spawnElite: false,
     flowOverlay: 'off',
     spawnOverlay: false,
+    godMode: false,
   };
 
   private readonly root: HTMLDivElement;
@@ -99,9 +104,11 @@ export class DebugPanel {
       </div>
       <div class="label">Seed</div>
       <div class="row">
-        <input data-seed type="text" inputmode="numeric" value="${hooks.seed}" />
+        <input data-seed type="text" inputmode="numeric" value="${hooks.seed() ?? ''}" />
         <button data-restart>Restart</button>
       </div>
+      <div class="label">Combat</div>
+      <div class="row"><label><input data-god type="checkbox" /> God mode</label></div>
       <div class="label">Spawning</div>
       <div class="row"><label><input data-spawn-paused type="checkbox" /> Pause spawning</label></div>
       <div class="row">
@@ -133,12 +140,13 @@ export class DebugPanel {
     }
     this.setTimeScale(hooks.loop.timeScale);
 
-    this.query('[data-skip]').addEventListener('click', () => hooks.cycle.skipPhase());
+    this.query('[data-skip]').addEventListener('click', () => hooks.cycle()?.skipPhase());
     const dayInput = this.query<HTMLInputElement>('[data-day]');
     this.query('[data-jump]').addEventListener('click', () => {
       const day = Number(dayInput.value);
-      if (Number.isFinite(day) && day >= 1) hooks.cycle.jumpToDay(day);
+      if (Number.isFinite(day) && day >= 1) hooks.cycle()?.jumpToDay(day);
     });
+    this.bindCheckbox('[data-god]', (on) => (this.settings.godMode = on));
     const seedInput = this.query<HTMLInputElement>('[data-seed]');
     this.query('[data-restart]').addEventListener('click', () => {
       if (/^\d+$/.test(seedInput.value.trim())) hooks.restartWithSeed(Number(seedInput.value.trim()) >>> 0);
@@ -193,6 +201,11 @@ export class DebugPanel {
     this.tickTimeTotal += ms;
   }
 
+  /** Shows a new run's seed in the seed box. */
+  setSeed(seed: number): void {
+    this.query<HTMLInputElement>('[data-seed]').value = String(seed);
+  }
+
   private bindCheckbox(selector: string, apply: (on: boolean) => void): void {
     const box = this.query<HTMLInputElement>(selector);
     box.addEventListener('change', () => apply(box.checked));
@@ -204,13 +217,18 @@ export class DebugPanel {
   }
 
   private updateReadout(): void {
-    const s = this.hooks.cycle.state;
+    const cycle = this.hooks.cycle();
+    if (!cycle) {
+      this.readout.textContent = `No run active\nFPS ${this.fps.toFixed(0)}`;
+      return;
+    }
+    const s = cycle.state;
     const label = DAY_CYCLE.phases[s.phaseIndex]!.label;
     const lines = [
       `Day ${s.day}  ${label} ${s.timeInPhase.toFixed(1)} / ${s.phaseLength} s`,
-      `Run time  ${this.hooks.cycle.elapsed.toFixed(1)} s`,
+      `Run time  ${cycle.elapsed.toFixed(1)} s`,
       `FPS ${this.fps.toFixed(0)}   tick ${this.msPerTick.toFixed(3)} ms`,
-      `Seed ${this.hooks.seed}`,
+      `Seed ${this.hooks.seed()}`,
       ...this.hooks.extraReadout(),
       ...Object.entries(this.hooks.entityCounts()).map(([name, count]) => `${name.padEnd(10)}${count}`),
     ];

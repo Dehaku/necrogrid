@@ -1,9 +1,133 @@
 // HUD drawn in screen space after the world. GAME_DESIGN.md section 8.4.
-// M2: the day ring.
+// M2: the day ring. M4: health and mana crescents, the spell bar (Bolt).
 
+import { BOLT } from '../data/spells';
 import { DAY_CYCLE, DAY_RING } from '../data/time';
-import { VIEW_WIDTH } from '../data/tuning';
+import { TILE_SIZE, VIEW_WIDTH } from '../data/tuning';
+import { CRESCENT, SPELL_BAR } from '../data/ui';
+import type { Player } from '../entities/player';
 import type { CycleState } from '../time/dayCycle';
+
+const DEG = Math.PI / 180;
+
+export interface Arc {
+  start: number;
+  end: number;
+  /** Draw counter-clockwise (decreasing angle). */
+  ccw: boolean;
+}
+
+/**
+ * The background and fill arcs of a crescent. Health sits on the west side and mana on the
+ * east; both span CRESCENT.span degrees with gaps at top and bottom. The fill starts at the
+ * bottom end and reaches up in proportion to `fraction`, so a dropping value drains downward.
+ * Canvas angles: 0 = east, +90° = south (screen down).
+ */
+export function crescentArcs(side: 'health' | 'mana', fraction: number): { background: Arc; fill: Arc } {
+  const half = (CRESCENT.span / 2) * DEG;
+  const f = Math.min(Math.max(fraction, 0), 1);
+  const sweep = CRESCENT.span * DEG * f;
+  if (side === 'health') {
+    // West: bottom end at 180° − half (lower left), increasing angle goes up the left side.
+    const bottom = Math.PI - half;
+    return {
+      background: { start: bottom, end: Math.PI + half, ccw: false },
+      fill: { start: bottom, end: bottom + sweep, ccw: false },
+    };
+  }
+  // East: bottom end at +half (lower right), decreasing angle goes up the right side.
+  return {
+    background: { start: half, end: -half, ccw: true },
+    fill: { start: half, end: half - sweep, ccw: true },
+  };
+}
+
+function strokeArc(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, arc: Arc, color: string): void {
+  if (arc.start === arc.end) return;
+  ctx.beginPath();
+  ctx.arc(x, y, r, arc.start, arc.end, arc.ccw);
+  ctx.strokeStyle = color;
+  ctx.stroke();
+}
+
+/** Health (left, red) and mana (right, blue) crescents around the necromancer's screen position. */
+export function drawCrescents(ctx: CanvasRenderingContext2D, x: number, y: number, player: Player): void {
+  const r = CRESCENT.radius * TILE_SIZE;
+  ctx.lineWidth = CRESCENT.thickness;
+  ctx.lineCap = 'butt';
+  const health = crescentArcs('health', player.hp / player.maxHp);
+  const mana = crescentArcs('mana', player.mana / player.maxMana);
+  strokeArc(ctx, x, y, r, health.background, CRESCENT.background);
+  strokeArc(ctx, x, y, r, mana.background, CRESCENT.background);
+  strokeArc(ctx, x, y, r, health.fill, CRESCENT.healthColor);
+  strokeArc(ctx, x, y, r, mana.fill, CRESCENT.manaColor);
+}
+
+export interface SpellIcon {
+  label: string;
+  /** 0 = ready, 1 = just cast. */
+  cooldownFraction: number;
+  usable: boolean;
+  draw: (ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) => void;
+}
+
+/** The spell icons for the current state. Chain joins in M5 and Mend in M6. */
+export function spellIcons(player: Player): SpellIcon[] {
+  return [
+    {
+      label: 'LMB',
+      cooldownFraction: player.boltCooldown / BOLT.cooldown,
+      usable: player.mana >= BOLT.manaCost,
+      draw: (ctx, cx, cy, size) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
+        ctx.fillStyle = BOLT.color;
+        ctx.fill();
+      },
+    },
+  ];
+}
+
+/** The spell bar: icons in a row, centered below the necromancer. */
+export function drawSpellBar(ctx: CanvasRenderingContext2D, x: number, y: number, icons: readonly SpellIcon[]): void {
+  const { iconSize: size, gap } = SPELL_BAR;
+  const total = icons.length * size + (icons.length - 1) * gap;
+  let left = x - total / 2;
+  const top = y + SPELL_BAR.offsetY - size / 2;
+  for (const icon of icons) {
+    ctx.globalAlpha = icon.usable ? 1 : 0.4;
+    ctx.fillStyle = SPELL_BAR.background;
+    ctx.fillRect(left, top, size, size);
+    icon.draw(ctx, left + size / 2, top + size / 2, size);
+    if (icon.cooldownFraction > 0) {
+      // A dark wedge that sweeps away clockwise as the cooldown ends.
+      const cx = left + size / 2;
+      const cy = top + size / 2;
+      const start = -Math.PI / 2 + (1 - icon.cooldownFraction) * Math.PI * 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(left, top, size, size);
+      ctx.clip();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, size, start, (3 * Math.PI) / 2);
+      ctx.closePath();
+      ctx.fillStyle = SPELL_BAR.cooldownShade;
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.strokeStyle = SPELL_BAR.border;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(left + 0.5, top + 0.5, size - 1, size - 1);
+    ctx.fillStyle = SPELL_BAR.labelColor;
+    ctx.font = '600 8px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(icon.label, left + size / 2, top + size + 2);
+    ctx.globalAlpha = 1;
+    left += size + gap;
+  }
+}
 
 const TOP = -Math.PI / 2;
 

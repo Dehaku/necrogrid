@@ -10,7 +10,9 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 
 ## Current status
 
-- Milestone: **M3 done** (enemies, flow fields, targeting, spawn director, no-spawn grid, debug spawn tools). Next: M4. Update this line when a milestone is finished.
+- Milestone: **M4 done** (Bolt, HP and death, crescents, spell bar, health bars, swipes, damage numbers, title/pause/end screens, god mode). Next: M5. Update this line when a milestone is finished.
+- `PHYLACTERY.destructionEndsRun` is `false` on purpose until M9 (see GAME_DESIGN.md section 11).
+- The page opens on the title screen with no run. `main.ts` owns `game` (undefined when no run is active) and creates a fresh `Game` and `EventBus` per run; anything that listens to game events must re-attach per run (see `Effects.attach`).
 - `SPAWN.activeRoster` in `src/data/spawn.ts` lists the enemies the director spawns. Add Wraith and Hellhound there in M9.
 
 ## Commands

@@ -19,7 +19,10 @@ export type ControlAction =
   | 'craft'
   | 'equipment'
   | 'pause'
-  | 'debug';
+  | 'debug'
+  | 'menuPrev'
+  | 'menuNext'
+  | 'menuConfirm';
 
 export interface ControlBinding {
   readonly action: ControlAction;
@@ -28,6 +31,8 @@ export interface ControlBinding {
   /** Short key label for the controls panel, e.g. "W" or "LMB". */
   readonly label: string;
   readonly description: string;
+  /** Menu navigation: not listed in the controls panel. */
+  readonly menuOnly?: true;
 }
 
 export const CONTROLS: readonly ControlBinding[] = [
@@ -53,4 +58,16 @@ export const CONTROLS: readonly ControlBinding[] = [
   { action: 'equipment', keys: ['Tab'], mouseButtons: [], label: 'Tab', description: 'Equipment' },
   { action: 'pause', keys: ['Escape'], mouseButtons: [], label: 'Esc', description: 'Pause' },
   { action: 'debug', keys: ['Backquote'], mouseButtons: [], label: '`', description: 'Debug panel (?debug only)' },
+  {
+    action: 'menuPrev', keys: ['ArrowUp', 'ArrowLeft', 'KeyW'], mouseButtons: [], label: '↑',
+    description: 'Previous menu item', menuOnly: true,
+  },
+  {
+    action: 'menuNext', keys: ['ArrowDown', 'ArrowRight', 'KeyS'], mouseButtons: [], label: '↓',
+    description: 'Next menu item', menuOnly: true,
+  },
+  {
+    action: 'menuConfirm', keys: ['Enter', 'NumpadEnter', 'Space'], mouseButtons: [], label: 'Enter',
+    description: 'Choose menu item', menuOnly: true,
+  },
 ];

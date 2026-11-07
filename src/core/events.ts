@@ -43,4 +43,9 @@ export interface GameEvents {
   'enemy:spawned': { id: number; type: EnemyId; elite: boolean };
   'player:damaged': { amount: number; hp: number };
   'phylactery:damaged': { amount: number; hp: number };
+  'enemy:damaged': { id: number; x: number; y: number; amount: number; hp: number };
+  'enemy:died': { id: number; type: EnemyId; elite: boolean; x: number; y: number };
+  /** A melee enemy landed a hit; drives the swipe visual. `size` is the enemy's draw size. */
+  'enemy:attacked': { x: number; y: number; angle: number; size: number; elite: boolean };
+  'run:lost': { cause: 'player' | 'phylactery'; day: number; kills: number; corpsesHarvested: number; score: number };
 }

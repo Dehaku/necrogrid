@@ -391,7 +391,8 @@ One screen, `src/ui/titleScreen.ts`, serves as both the title screen and the pau
 | **New Game** | Always | Starts a new run. If a run is active, asks for confirmation first (below) |
 | **Settings** | Always | Opens Settings (section 12). Esc returns to this screen |
 
-- Buttons work with the mouse, and with Up/Down plus Enter. The top button is focused when the screen opens.
+- Buttons work with the mouse, and with Up/Down (also Left/Right and W/S) plus Enter or Space. The top button is focused when the screen opens. Menu keys are bindings in `src/data/controls.ts` marked `menuOnly`, so the controls panel leaves them out.
+- While any screen is open, every key and click goes to it and never reaches the game.
 - **Confirmation:** New Game during an active run shows "Abandon the current run?" with **Abandon** and **Cancel**. Cancel is focused, and Esc means Cancel. Abandon ends the current run with no score saved and starts a new one.
 
 **Corner panels:**
@@ -535,6 +536,7 @@ Gaps in the wall ring are expected. They give enemies a route in, so the first f
 ## 11. Win and Lose Conditions
 
 - **Win:** the Phylactery completes during day 15 (section 10.4). The game pauses and shows a summary with a **Continue** button. Continue resumes the run in endless mode.
+- **Build note:** Phylactery destruction ending the run is switched off (`PHYLACTERY.destructionEndsRun = false` in `src/data/buildings.ts`) until M9, so M4–M8 can be tested before the starting base and repairs exist. Player death ends the run from M4.
 - **Lose (before completion):** player HP reaches 0, or the Phylactery is destroyed. The end screen shows the day reached, the number of corpses harvested, and the score, with a **Return to title** button. The run is no longer active, so the title screen shows no Resume.
 - **Lose (after completion):** only if the Phylactery is destroyed. Player death is not a loss; the necromancer respawns (section 10.4). Each death costs the Phylactery 30 HP, which can destroy it.
 - **Score:** `day × 100 + kills × 2 + buildingsDestroyedByDemons × −10`. Shown on the end screen and saved locally.
@@ -641,6 +643,7 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 ### M9 — Full Roster and Win/Lose
 - Wraith: spawns by the section 6 rules, fades in, flies directly, stops at range, fires slow shots blocked by buildings, and uses straight-line targeting with Lantern weighting.
 - Hellhound from day 5. Night-only and minDay rules.
+- Turn on `PHYLACTERY.destructionEndsRun`.
 - Phylactery completion timer on day 15, victory on completion, respawn after completion (3 s delay with camera pan, 30 HP Phylactery cost, 3 s invulnerability, cooldown reset), loss on destruction. Scoring and win/lose screens.
 - Tuning pass against the numbers in this document. Record any changed values in section 16.
 - **Done when:** using "Jump to day 15", a run ends in victory when the Phylactery completes, the necromancer respawns on (0, 2) 3 s after death and the Phylactery loses 30 HP, a run ends in loss when the Phylactery is destroyed, and the end screen shows score. One full run at 1× is also played end-to-end.
@@ -749,7 +752,7 @@ necrogrid/
       phylactery.ts
       startingBase.ts        # starting walls and Totem
     combat/
-      bolt.ts
+      bolt.ts                # casting, flight, segment hit tests
       chain.ts
       damage.ts
       targeting.ts           # target selectors and hysteresis
@@ -767,6 +770,8 @@ necrogrid/
       craftMenu.ts
       equipmentScreen.ts
       titleScreen.ts         # title and pause screen, confirmation, controls and seed panels
+      endScreen.ts           # loss summary and Return to title
+      menuWidgets.ts         # shared buttons, dialogs, hit tests
       healthBars.ts          # enemy and building health bars
       settings.ts
     debug/
@@ -776,6 +781,7 @@ necrogrid/
       canvas.ts
       camera.ts
       lighting.ts
+      effects.ts             # attack swipes and damage numbers
       sprites.ts             # placeholder shapes first, sprites later
     data/
       tuning.ts
@@ -787,6 +793,7 @@ necrogrid/
       loot.ts
       terrain.ts             # map generation tuning (coverage, cluster sizes)
       controls.ts            # key bindings and their labels
+      ui.ts                  # HUD, menu, and effect sizes, colors, timings
       time.ts                # day cycle phases, lighting, day ring
   tests/
     chain.test.ts
