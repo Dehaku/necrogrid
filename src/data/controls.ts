@@ -49,10 +49,10 @@ export const CONTROLS: readonly ControlBinding[] = [
   { action: 'build', keys: ['KeyB'], mouseButtons: [], label: 'B', description: 'Build mode' },
   {
     action: 'buildSlot',
-    keys: ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6'],
+    keys: ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8'],
     mouseButtons: [],
-    label: '1–6',
-    description: 'Select building',
+    label: '1–8',
+    description: 'Select building / Marsh / Fill',
   },
   { action: 'craft', keys: ['KeyC'], mouseButtons: [], label: 'C', description: 'Crafting' },
   { action: 'equipment', keys: ['Tab'], mouseButtons: [], label: 'Tab', description: 'Equipment' },

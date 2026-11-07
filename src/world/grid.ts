@@ -36,9 +36,9 @@ export function isWalkableTile(tile: TileId | undefined): boolean {
   return tile !== undefined && TILE_PROPS[tile].walkable;
 }
 
-/** Player speed multiplier for a tile. Ungenerated counts as 1 (the player cannot stand there anyway). */
-export function playerSpeedMultiplier(tile: TileId | undefined): number {
-  return tile === undefined ? 1 : TILE_PROPS[tile].playerSpeedMultiplier;
+/** Ground unit speed multiplier for a tile. Ungenerated counts as 1 (nothing can stand there anyway). */
+export function groundSpeedMultiplier(tile: TileId | undefined): number {
+  return tile === undefined ? 1 : TILE_PROPS[tile].groundSpeedMultiplier;
 }
 
 /**

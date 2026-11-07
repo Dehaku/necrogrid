@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.13. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.14. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -26,6 +26,7 @@
 | 0.11 | No-spawn grid: each building blocks spawns within its `noSpawnRadius` (3 tiles, Bone Totem 5), kept as a counter grid updated on place and remove (section 6). |
 | 0.12 | Enemy attack swipes: a short crescent swipe toward what a melee enemy hits, red (orange for elites), built in M4 (section 7). |
 | 0.13 | Swipe reworked: the bright edge leads and the fade trails behind. Player-made Marsh (10 Flesh, 1 Ichor) added to the build list, with open questions (decision 36). |
+| 0.14 | Marsh slows ground demons too. Fill (5 Bone, 5 Flesh) turns any marsh into dirt. No refunds; marsh stays out of the no-build zone. Hotbar keys 1–8. |
 
 ---
 
@@ -80,7 +81,7 @@ You are a necromancer holding back waves of demons in a procedurally generated w
 | `grass` | yes | yes | remainder | Default |
 | `dirt` | yes | yes | ~20% | Cosmetic variant of grass |
 | `rock` | no | no | ~4%, clusters of 1–4 tiles | Blocks ground movement and bolts |
-| `marsh` | yes (slows 50%) | no | ~6% | Slows the player; demons ignore it |
+| `marsh` | yes (slows 50%) | no | ~6% | Slows ground units (the player and ground demons) to 50% while their center is on it; flying units ignore it. Flow fields do not avoid it, so demons walk through and are slowed. Players can make it and fill it (section 10.2) |
 
 **Generation rules:**
 - No `rock` or `marsh` within 6 tiles of the Phylactery's center, so the starting base always fits.
@@ -258,7 +259,7 @@ Elite values live in `src/data/enemies.ts` next to the roster.
 | E | Harvest the nearest corpse in range (or hold E for auto-harvest) |
 | R (hold) | Repair the nearest damaged building within 2 tiles |
 | B | Toggle build mode |
-| 1–6 | Select building in build mode |
+| 1–8 | Select building (1–6) or terrain edit (7 Marsh, 8 Fill) in build mode |
 | C | Open crafting menu (pauses the game) |
 | Tab | Open the equipment screen: resources and unlocked gear (pauses the game) |
 | Esc | Open the pause screen (section 8.5). If the C or Tab menu is open, Esc closes that menu instead |
@@ -460,7 +461,14 @@ The loot table lives in `src/data/loot.ts`, keyed by corpse size. Elite corpses 
 | 4 | **Corpse Collector** | 1×1 | 8 Bone, 2 Flesh | 80 | Instantly harvests the nearest corpse within 3 tiles, then waits a random 3–5 s cooldown (section 10.2.1) |
 | 5 | **Altar** | 2×2 | 10 Flesh, 10 Ichor | 150 | Crafting station. +4 mana regen aura, radius 5 tiles |
 | 6 | **Grave Lantern** | 1×1 | 3 Bone, 2 Flesh | 40 | Light radius +3 tiles at night. Draws Wraith targeting (decoy, `aggroWeight = 2`) |
-| 7 | **Marsh** | 1×1 | 10 Flesh, 1 Ichor | — | Not a building: turns a grass or dirt tile into `marsh` permanently. See the open question in section 18 (decision 36) |
+| 7 | **Marsh** | 1×1 | 10 Flesh, 1 Ichor | — | Terrain edit, not a building: turns a grass or dirt tile into `marsh`, which slows the player and ground demons by 50% |
+| 8 | **Fill** | 1×1 | 5 Bone, 5 Flesh | — | Terrain edit: turns any `marsh` tile, wild or player-made, into `dirt` (which is buildable) |
+
+**Terrain edit rules (Marsh and Fill):**
+- Neither is refunded and neither has HP; they change the tile itself.
+- Marsh can be placed only on grass or dirt, not on a building, and not in the no-build zone around the Phylactery (section 10.4). Fill works on any marsh tile.
+- Units standing on the tile do not block either edit.
+- Rules live in `src/world/terrainEdit.ts`, costs in `TERRAIN_EDITS` in `src/data/buildings.ts`. Payment arrives with resources (M6) and placement with build mode (M7).
 
 Totems never target a Wraith that is still fading in.
 
@@ -635,7 +643,7 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 - Player collision with buildings, with the Bone Door exception.
 - Pre-place the Phylactery and the starting base (section 10.5).
 - All six buildings, including the Corpse Collector's random cooldown and the Totem's nearest-enemy targeting.
-- The Marsh tile (key 7), once decision 36 is settled.
+- Marsh (key 7) and Fill (key 8) in the hotbar, using `Game.editTerrain` and paying their costs.
 - Buildings take damage, show health bars while damaged, can be destroyed, can be repaired with the scaled cost, and can be removed for a 50% refund. Player and Totem bolts pass over player buildings.
 - **Done when:** all six buildings place and function as described in section 10.2, the player walks through doors but enemies cannot, every seed gives a different starting wall pattern with at least one gap and exactly one Totem (unit test), and repair cost matches the formula (unit test).
 
@@ -898,11 +906,10 @@ Record every balance change here so intent is not lost.
 **Confirmed (v0.12):**
 35. **Enemy attack swipes:** a short red crescent swipe toward whatever a melee enemy hits; orange for elites (section 7, built in M4).
 
-**Open:**
-36. **Player-made marsh (section 10.2, key 7):** 10 Flesh + 1 Ichor turns a grass or dirt tile into marsh. Still to decide before M7:
-    - **What it is for.** Marsh currently slows only the player, and demons ignore it, so as written it would only hurt the player. Options: make all marsh (or only player-made marsh) slow demons, for example by 50%; or keep it as a cosmetic or terrain-shaping tool.
-    - **Whether it can be removed** (and refunded), or is permanent.
-    - **Placement rules:** whether it may go in the no-build zone, and whether it gets a hotbar slot (7) like the buildings.
+**Confirmed (v0.14):**
+36. **Marsh:** all marsh, wild or player-made, slows ground demons by 50% like the player. Players can make marsh (10 Flesh, 1 Ichor, key 7) and fill any marsh into dirt (5 Bone, 5 Flesh, key 8). No refunds. Marsh stays out of the no-build zone (section 10.2).
+
+**Open:** none right now.
 
 ## 19. Glossary
 

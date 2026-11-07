@@ -2,6 +2,7 @@
 // GAME_DESIGN.md section 15.
 
 import type { EnemyId } from '../data/enemies';
+import type { TileId } from '../data/terrain';
 import type { PauseReason } from './loop';
 
 export type Handler<T> = (payload: T) => void;
@@ -35,6 +36,8 @@ export interface GameEvents {
   'game:resumed': { reason: PauseReason };
   /** A chunk was generated. Flow fields listen for this from M3. */
   'chunk:generated': { chunkX: number; chunkY: number };
+  /** A terrain edit changed a tile (player-made marsh, or marsh filled to dirt). */
+  'tile:changed': { tileX: number; tileY: number; tile: TileId };
   /** A phase started. `phase:day` also marks the day counter going up. */
   'phase:day': { day: number };
   'phase:dusk': { day: number };

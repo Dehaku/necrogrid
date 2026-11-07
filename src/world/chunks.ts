@@ -45,6 +45,19 @@ export class ChunkMap {
     return chunk.tiles[localY * CHUNK_SIZE + localX] as TileId;
   }
 
+  /**
+   * Changes one tile (terrain edits such as player-made marsh). Returns false if the tile's
+   * chunk has not been generated. Changes are kept for the run like everything else in a chunk.
+   */
+  setTile(tileX: number, tileY: number, tile: TileId): boolean {
+    const chunkX = chunkCoord(tileX);
+    const chunkY = chunkCoord(tileY);
+    const chunk = this.chunks.get(key(chunkX, chunkY));
+    if (!chunk) return false;
+    chunk.tiles[(tileY - chunkY * CHUNK_SIZE) * CHUNK_SIZE + (tileX - chunkX * CHUNK_SIZE)] = tile;
+    return true;
+  }
+
   /** Generates one chunk if it does not exist yet. Returns it if it was new. */
   generate(chunkX: number, chunkY: number): Chunk | undefined {
     const k = key(chunkX, chunkY);

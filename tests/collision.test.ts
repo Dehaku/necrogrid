@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TILE } from '../src/data/terrain';
-import { isWalkableTile, playerSpeedMultiplier, resolveCircleCollision } from '../src/world/grid';
+import { isWalkableTile, groundSpeedMultiplier, resolveCircleCollision } from '../src/world/grid';
 
 const single = (bx: number, by: number) => (tx: number, ty: number) => tx === bx && ty === by;
 
@@ -44,8 +44,8 @@ describe('tile helpers', () => {
     expect(isWalkableTile(undefined)).toBe(false);
   });
 
-  it('slows the player on marsh only', () => {
-    expect(playerSpeedMultiplier(TILE.marsh)).toBe(0.5);
-    expect(playerSpeedMultiplier(TILE.dirt)).toBe(1);
+  it('slows ground units on marsh only', () => {
+    expect(groundSpeedMultiplier(TILE.marsh)).toBe(0.5);
+    expect(groundSpeedMultiplier(TILE.dirt)).toBe(1);
   });
 });

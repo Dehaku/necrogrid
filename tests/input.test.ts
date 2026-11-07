@@ -80,12 +80,12 @@ describe('Input', () => {
 describe('control bindings', () => {
   it('finds the keys for an action', () => {
     expect(keysForAction(CONTROLS, 'moveUp')).toEqual(['KeyW']);
-    expect(keysForAction(CONTROLS, 'buildSlot')).toHaveLength(6);
+    expect(keysForAction(CONTROLS, 'buildSlot')).toHaveLength(8);
   });
 
   it('suppresses browser defaults for Tab, backtick, and every bound key', () => {
     const keys = boundKeys(CONTROLS);
-    for (const code of ['Tab', 'Backquote', 'Escape', 'KeyW', 'KeyQ', 'Digit6']) {
+    for (const code of ['Tab', 'Backquote', 'Escape', 'KeyW', 'KeyQ', 'Digit8']) {
       expect(keys.has(code)).toBe(true);
     }
   });

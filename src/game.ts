@@ -24,12 +24,14 @@ import {
   distanceToFootprint,
   isWalkableTile,
   nearestPointOnFootprint,
-  playerSpeedMultiplier,
+  groundSpeedMultiplier,
+  tileKey,
   type Footprint,
 } from './world/grid';
 import { separation, steer } from './world/navigation';
 import { NoSpawnGrid } from './world/noSpawnGrid';
 import { SpatialHash } from './world/spatialHash';
+import { terrainEditProblem, terrainEditResult, type TerrainEdit } from './world/terrainEdit';
 
 /** Separate RNG stream for spawning, so other systems never shift spawn rolls. */
 const SPAWN_STREAM = 0x5370;
@@ -81,6 +83,7 @@ export class Game {
   /** Debug: which field rebuilt this tick, if any. */
   lastFieldRebuild: GoalId | undefined;
 
+  private readonly noBuildZone = new Set<number>();
   private nextEnemyId = 1;
   private readonly neighbors: Enemy[] = [];
   private readonly playerTerrain: PlayerTerrain;
@@ -97,6 +100,7 @@ export class Game {
     this.phylactery = createPhylactery();
     this.buildings.place(PHYLACTERY_ID, this.phylactery.footprint);
     this.noSpawn.add(this.phylactery.footprint, PHYLACTERY.noSpawnRadius);
+    for (const t of phylacteryRingTiles(this.phylactery.footprint)) this.noBuildZone.add(tileKey(t.x, t.y));
 
     this.fields = new FlowFields(
       {
@@ -109,7 +113,7 @@ export class Game {
     this.director = new SpawnDirector(new Rng(hashInts(seed, SPAWN_STREAM)));
 
     this.playerTerrain = {
-      speedMultiplierAt: (x, y) => playerSpeedMultiplier(this.map.getTile(Math.floor(x), Math.floor(y))),
+      speedMultiplierAt: (x, y) => groundSpeedMultiplier(this.map.getTile(Math.floor(x), Math.floor(y))),
       isBlocked: this.groundBlocked,
     };
 
@@ -117,6 +121,28 @@ export class Game {
       this.fields.chunkGenerated(chunkX * CHUNK_SIZE, chunkY * CHUNK_SIZE, CHUNK_SIZE),
     );
     this.generateChunks();
+  }
+
+  /** The 16 tiles bordering the Phylactery, where the player cannot build (section 10.4). */
+  isNoBuildZone(tileX: number, tileY: number): boolean {
+    return this.noBuildZone.has(tileKey(tileX, tileY));
+  }
+
+  /**
+   * Applies a terrain edit (player-made marsh, or filling marsh to dirt) if it is allowed.
+   * Returns the reason it is not, or undefined on success. Payment is added in M6/M7.
+   */
+  editTerrain(edit: TerrainEdit, tileX: number, tileY: number): string | undefined {
+    const problem = terrainEditProblem(edit, tileX, tileY, {
+      getTile: (x, y) => this.map.getTile(x, y),
+      isBuilding: (x, y) => this.buildings.has(x, y),
+      isNoBuildZone: (x, y) => this.isNoBuildZone(x, y),
+    });
+    if (problem) return problem;
+    const tile = terrainEditResult(edit);
+    this.map.setTile(tileX, tileY, tile);
+    this.events.emit('tile:changed', { tileX, tileY, tile });
+    return undefined;
   }
 
   get score(): number {
@@ -271,10 +297,12 @@ export class Game {
       desired = { x: dx / d, y: dy / d };
     }
     const push = separation(enemy, this.enemyHash, this.neighbors);
+    // Marsh (wild or player-made) slows ground demons the same as the player. Flying ignores it.
+    const speed = ground ? def.speed * groundSpeedMultiplier(this.map.getTile(tileX, tileY)) : def.speed;
     steer(
       enemy,
       { x: desired.x + push.x * NAV.separationWeight, y: desired.y + push.y * NAV.separationWeight },
-      def.speed,
+      speed,
       def.radius,
       dt,
       ground ? this.groundBlocked : undefined,

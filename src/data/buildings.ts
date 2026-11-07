@@ -1,6 +1,17 @@
 // Building values. Data only. GAME_DESIGN.md sections 6 (no-spawn radius) and 10.
 // M3 has only the Phylactery placeholder; the six player buildings arrive in M7.
 
+/**
+ * Terrain edits (section 10.2, keys 7 and 8). Costs are paid once resources exist (M6) and
+ * the actions are placed from build mode (M7). Neither is refunded.
+ */
+export const TERRAIN_EDITS = {
+  /** Turn a grass or dirt tile into marsh. */
+  marsh: { cost: { flesh: 10, ichor: 1 } },
+  /** Fill any marsh tile, wild or player-made, into dirt. */
+  fill: { cost: { bone: 5, flesh: 5 } },
+} as const;
+
 /** Tiles past each footprint edge where enemies cannot spawn, unless a building says otherwise. */
 export const DEFAULT_NO_SPAWN_RADIUS = 3;
 

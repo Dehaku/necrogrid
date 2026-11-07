@@ -16,16 +16,19 @@ export interface TileProps {
   readonly name: string;
   readonly walkable: boolean;
   readonly buildable: boolean;
-  /** Multiplies the player's move speed while standing on this tile. Demons ignore it. */
-  readonly playerSpeedMultiplier: number;
+  /**
+   * Multiplies the move speed of ground units (the player and ground demons) whose center is
+   * on this tile. Flying units ignore it.
+   */
+  readonly groundSpeedMultiplier: number;
   readonly color: string;
 }
 
 export const TILE_PROPS: Readonly<Record<TileId, TileProps>> = {
-  [TILE.grass]: { name: 'grass', walkable: true, buildable: true, playerSpeedMultiplier: 1, color: '#1f2620' },
-  [TILE.dirt]: { name: 'dirt', walkable: true, buildable: true, playerSpeedMultiplier: 1, color: '#2a2521' },
-  [TILE.rock]: { name: 'rock', walkable: false, buildable: false, playerSpeedMultiplier: 1, color: '#55505c' },
-  [TILE.marsh]: { name: 'marsh', walkable: true, buildable: false, playerSpeedMultiplier: 0.5, color: '#1e3833' },
+  [TILE.grass]: { name: 'grass', walkable: true, buildable: true, groundSpeedMultiplier: 1, color: '#1f2620' },
+  [TILE.dirt]: { name: 'dirt', walkable: true, buildable: true, groundSpeedMultiplier: 1, color: '#2a2521' },
+  [TILE.rock]: { name: 'rock', walkable: false, buildable: false, groundSpeedMultiplier: 1, color: '#55505c' },
+  [TILE.marsh]: { name: 'marsh', walkable: true, buildable: false, groundSpeedMultiplier: 0.5, color: '#1e3833' },
 };
 
 /** Drawn where no chunk has been generated yet. */
