@@ -54,6 +54,15 @@ export const PICKUP_POPUPS = {
   lineHeight: 0.45,
 } as const;
 
+/** The gray jagged line from a Corpse Collector to the corpse it harvests. */
+export const COLLECTOR_LINK = {
+  /** Seconds to fade out. */
+  fade: 0.35,
+  segmentLength: 0.4,
+  jitter: 0.16,
+  color: 'rgba(190, 190, 196, 0.9)',
+} as const;
+
 export const CORPSES = {
   /** How dark a corpse is drawn compared to the living enemy (0–1). */
   darken: 0.45,

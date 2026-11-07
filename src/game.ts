@@ -1,7 +1,7 @@
 // The simulation for one run: world, time, player, Phylactery, enemies, and spawning.
 // main.ts owns the browser side (canvas, input, loop) and calls tick() at 60 Hz.
 
-import { ALTAR, BUILD_RULES, BUILDINGS, COLLECTOR, PHYLACTERY, TERRAIN_EDITS, TOTEM, type BuildingKind } from './data/buildings';
+import { ALTAR, BUILD_RULES, BUILDINGS, COLLECTOR, PHYLACTERY, STARTING_BASE, TERRAIN_EDITS, TOTEM, type BuildingKind } from './data/buildings';
 import { nearestWithin, totemBolt } from './combat/totem';
 import { createBuilding, footprintCenter, placementProblem, shareOf, type Building, type PlacementWorld } from './entities/building';
 import { planStartingBase } from './entities/startingBase';
@@ -145,7 +145,7 @@ export class Game {
     if (!isWalkableTile(this.map.getTile(tx, ty))) return true;
     const id = this.buildings.buildingAt(tx, ty);
     if (id === undefined) return false;
-    return !(this.buildingsById.get(id)?.def.playerPassable ?? false);
+    return !(this.buildingsById.get(id)?.playerPassable ?? false);
   };
 
   constructor(
@@ -186,7 +186,7 @@ export class Game {
     if (options.startingBase ?? true) this.buildStartingBase();
   }
 
-  /** Section 10.5: free walls on the ring 2 tiles out (60% each, never closed), then one Totem 3 tiles out. */
+  /** Section 10.5: free walls on the ring 2 tiles out (60% each, never closed), then one walk-through Totem on the inner ring. */
   private buildStartingBase(): void {
     const plan = planStartingBase(
       this.buildRng,
@@ -195,7 +195,13 @@ export class Game {
       (t) => placementProblem({ x: t.x, y: t.y, w: 1, h: 1 }, this.placementWorld(), true) === undefined,
     );
     for (const w of plan.walls) this.placeBuilding('wall', w.x, w.y, { free: true });
-    if (plan.totem) this.placeBuilding('totem', plan.totem.x, plan.totem.y, { free: true });
+    if (plan.totem) {
+      this.placeBuilding('totem', plan.totem.x, plan.totem.y, {
+        free: true,
+        ignoreNoBuildZone: true,
+        playerPassable: STARTING_BASE.totemPlayerPassable,
+      });
+    }
   }
 
   private placementWorld(): PlacementWorld {
@@ -233,14 +239,19 @@ export class Game {
    * Places a building with its top-left tile at (x, y), paying its cost unless `free`.
    * Returns the building, or the reason it could not be placed.
    */
-  placeBuilding(kind: BuildingKind, x: number, y: number, options: { free?: boolean; ignoreNoBuildZone?: boolean } = {}): Building | string {
+  placeBuilding(
+    kind: BuildingKind,
+    x: number,
+    y: number,
+    options: { free?: boolean; ignoreNoBuildZone?: boolean; playerPassable?: boolean } = {},
+  ): Building | string {
     const def = BUILDINGS[kind];
     const fp: Footprint = { x, y, w: def.w, h: def.h };
     const problem = placementProblem(fp, this.placementWorld(), options.ignoreNoBuildZone ?? false);
     if (problem) return problem;
     const free = options.free ?? false;
     if (!free && !this.spend(def.cost)) return 'Not enough resources';
-    const building = createBuilding(this.nextBuildingId++, kind, x, y, free);
+    const building = createBuilding(this.nextBuildingId++, kind, x, y, free, options.playerPassable);
     if (kind === 'collector') building.cooldown = this.buildRng.range(COLLECTOR.cooldownMin, COLLECTOR.cooldownMax);
     this.buildingsById.set(building.id, building);
     this.buildings.place(building.id, fp);
@@ -333,6 +344,7 @@ export class Game {
         const corpse = nearestWithin(center, this.corpses, COLLECTOR.range);
         if (!corpse) continue;
         if (this.harvest?.corpse === corpse) this.harvest = undefined;
+        this.events.emit('collector:collected', { fromX: center.x, fromY: center.y, toX: corpse.x, toY: corpse.y });
         this.collectCorpse(corpse);
         b.cooldown = this.buildRng.range(COLLECTOR.cooldownMin, COLLECTOR.cooldownMax);
       }
@@ -633,6 +645,8 @@ export class Game {
   private updateEnemy(enemy: Enemy, dt: number): void {
     const def = enemy.def;
     const ground = def.movement === 'ground';
+    // Field-following ground enemies path around obstacles; 'direct' ones (Shamblers) just walk at the target.
+    const usesField = ground && def.navigation === 'field';
     enemy.prevX = enemy.x;
     enemy.prevY = enemy.y;
     const tileX = Math.floor(enemy.x);
@@ -644,7 +658,7 @@ export class Game {
     const straightToPhylactery = distanceToFootprint(enemy.x, enemy.y, fp);
     let toPlayer = straightToPlayer;
     let toPhylactery = straightToPhylactery;
-    if (ground) {
+    if (usesField) {
       const fieldPlayer = this.fields.player.distanceAt(tileX, tileY);
       const fieldPhylactery = this.fields.phylactery.distanceAt(tileX, tileY);
       // Stuck: inside both windows with no path to either target (a sealed rock pocket).
@@ -673,9 +687,12 @@ export class Game {
 
     const field: FlowField = this.fields.field(enemy.target);
 
+    const aimPoint = enemy.target === 'player' ? this.player : nearestPointOnFootprint(enemy.x, enemy.y, fp);
+
     // A building on the next step of the path is attacked until it is destroyed (section 7).
+    // Direct walkers check the tile straight ahead toward their target instead.
     if (ground) {
-      const step = field.directionAt(tileX, tileY);
+      const step = usesField ? field.directionAt(tileX, tileY) : directStep(enemy, aimPoint);
       if (step) {
         const nextX = tileX + Math.round(step.x);
         const nextY = tileY + Math.round(step.y);
@@ -692,14 +709,14 @@ export class Game {
     }
 
     // Desired direction: the smoothed field, or straight at the target.
-    let desired = ground ? field.sample(enemy.x, enemy.y) : undefined;
+    let desired = usesField ? field.sample(enemy.x, enemy.y) : undefined;
     if (!desired) {
-      const aim = enemy.target === 'player' ? this.player : nearestPointOnFootprint(enemy.x, enemy.y, fp);
-      const dx = aim.x - enemy.x;
-      const dy = aim.y - enemy.y;
+      const dx = aimPoint.x - enemy.x;
+      const dy = aimPoint.y - enemy.y;
       const d = Math.hypot(dx, dy) || 1;
       desired = { x: dx / d, y: dy / d };
     }
+    if (def.wiggle) desired = rotate(desired, wiggleAngle(enemy.id, this.cycle.elapsed, def.wiggle));
     const push = separation(enemy, this.enemyHash, this.neighbors);
     // Marsh (wild or player-made) slows ground demons the same as the player. Flying ignores it.
     const speed = ground ? def.speed * groundSpeedMultiplier(this.map.getTile(tileX, tileY)) : def.speed;
@@ -802,4 +819,32 @@ export class Game {
     }
     this.enemies.length = write;
   }
+}
+
+/** For direct walkers: the unit step (rounded to a tile neighbor) from the enemy's tile toward a point. */
+function directStep(enemy: { x: number; y: number }, aim: Point): Point | undefined {
+  const dx = aim.x - enemy.x;
+  const dy = aim.y - enemy.y;
+  const d = Math.hypot(dx, dy);
+  if (d < 1e-6) return undefined;
+  // Snap to the 8 neighbors, like a flow field step.
+  const angle = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+  return { x: Math.cos(angle), y: Math.sin(angle) };
+}
+
+function rotate(v: Point, angle: number): Point {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return { x: v.x * c - v.y * s, y: v.x * s + v.y * c };
+}
+
+/**
+ * A deterministic sway for an enemy's heading at run time `time`: two out-of-step sine waves
+ * with a per-enemy phase, so a crowd does not sway in unison. At most `strength` radians.
+ */
+export function wiggleAngle(enemyId: number, time: number, wiggle: { strength: number; speed: number }): number {
+  const phase = (hashInts(enemyId, 0x3177) / 4294967296) * Math.PI * 2;
+  const phase2 = (hashInts(enemyId, 0x3178) / 4294967296) * Math.PI * 2;
+  const t = time * wiggle.speed * Math.PI * 2;
+  return wiggle.strength * (0.65 * Math.sin(t + phase) + 0.35 * Math.sin(t * 2.3 + phase2));
 }

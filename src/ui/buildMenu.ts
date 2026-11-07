@@ -1,7 +1,7 @@
 // Build mode: the hotbar, the placement ghost, and its tooltip. GAME_DESIGN.md sections 4.1
 // (ghost), 8.4 (build hotbar), and 10.2 (roster). Build mode does not pause the game.
 
-import { BUILDINGS, HOTBAR, TERRAIN_EDITS, type BuildChoice } from '../data/buildings';
+import { BUILDINGS, COLLECTOR, HOTBAR, TERRAIN_EDITS, TOTEM, type BuildChoice } from '../data/buildings';
 import { RESOURCE_ORDER, RESOURCES, type ResourceAmounts } from '../data/resources';
 import { TILE_PROPS, TILE } from '../data/terrain';
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
@@ -13,13 +13,21 @@ export interface ChoiceInfo {
   w: number;
   h: number;
   color: string;
+  /** One line: what it does. */
+  description: string;
+  /** Reach in tiles from its center (Totem shots, Collector harvests), drawn as a circle on the ghost. */
+  range?: number;
 }
 
 export function choiceInfo(choice: BuildChoice): ChoiceInfo {
-  if (choice === 'marsh') return { name: TERRAIN_EDITS.marsh.name, cost: TERRAIN_EDITS.marsh.cost, w: 1, h: 1, color: TILE_PROPS[TILE.marsh].color };
-  if (choice === 'fill') return { name: TERRAIN_EDITS.fill.name, cost: TERRAIN_EDITS.fill.cost, w: 1, h: 1, color: TILE_PROPS[TILE.dirt].color };
+  if (choice === 'marsh' || choice === 'fill') {
+    const edit = TERRAIN_EDITS[choice];
+    const color = TILE_PROPS[choice === 'marsh' ? TILE.marsh : TILE.dirt].color;
+    return { name: edit.name, cost: edit.cost, w: 1, h: 1, color, description: edit.description };
+  }
   const def = BUILDINGS[choice];
-  return { name: def.name, cost: def.cost, w: def.w, h: def.h, color: def.color };
+  const range = choice === 'totem' ? TOTEM.range : choice === 'collector' ? COLLECTOR.range : undefined;
+  return { name: def.name, cost: def.cost, w: def.w, h: def.h, color: def.color, description: def.description, range };
 }
 
 /** "10 Bone, 5 Ichor" */
@@ -105,13 +113,25 @@ export function drawGhost(
   const w = fp.w * TILE_SIZE;
   const h = fp.h * TILE_SIZE;
   const ok = problem === undefined;
+  if (info.range) {
+    // Reach circle around the footprint's center (Totem shots, Collector harvests).
+    ctx.beginPath();
+    ctx.arc(screen.x + w / 2, screen.y + h / 2, info.range * TILE_SIZE, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(200, 190, 255, 0.07)';
+    ctx.fill();
+    ctx.setLineDash([6, 5]);
+    ctx.strokeStyle = 'rgba(200, 190, 255, 0.6)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
   ctx.fillStyle = ok ? 'rgba(80, 220, 120, 0.35)' : 'rgba(230, 70, 70, 0.35)';
   ctx.fillRect(screen.x, screen.y, w, h);
   ctx.strokeStyle = ok ? '#5ee08a' : '#ec5a5a';
   ctx.lineWidth = 2;
   ctx.strokeRect(screen.x + 1, screen.y + 1, w - 2, h - 2);
 
-  const lines = [`${info.name} — ${costText(info.cost)}`, ...(problem ? [problem] : [])];
+  const lines = [`${info.name} — ${costText(info.cost)}`, info.description, ...(problem ? [problem] : [])];
   ctx.font = '600 12px system-ui, sans-serif';
   const width = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 12;
   const tx = screen.x + w / 2 - width / 2;
@@ -121,7 +141,7 @@ export function drawGhost(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   lines.forEach((line, i) => {
-    ctx.fillStyle = i === 0 ? '#f2ead8' : '#ff8a8a';
+    ctx.fillStyle = i === 0 ? '#f2ead8' : i === 1 ? '#b7aec2' : '#ff8a8a';
     ctx.fillText(line, screen.x + w / 2, ty + 3 + i * 16);
   });
 }

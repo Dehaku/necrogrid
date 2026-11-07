@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.15. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.16. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -28,6 +28,7 @@
 | 0.13 | Swipe reworked: the bright edge leads and the fade trails behind. Player-made Marsh (10 Flesh, 1 Ichor) added to the build list, with open questions (decision 36). |
 | 0.14 | Marsh slows ground demons too. Fill (5 Bone, 5 Flesh) turns any marsh into dirt. No refunds; marsh stays out of the no-build zone. Hotbar keys 1–8. |
 | 0.15 | Starting Totem moved to the ring one tile past the walls. Esc, Tab, and E also leave build mode. Grave Lantern light 3 → 4 tiles. |
+| 0.16 | Starting Totem back on the inner ring, and the player can walk through it. Build ghost: description line, and reach circles for the Totem and Collector. Gray jagged line when a Collector harvests. Shamblers: no pathfinding, straight at the target with a sway. |
 
 ---
 
@@ -190,7 +191,7 @@ All enemies are defined as data in `src/data/enemies.ts`. Adding an enemy means 
 | Enemy | Phase | HP | Speed (px/s) | Damage | Attack | Corpse | Behavior |
 |---|---|---|---|---|---|---|---|
 | **Imp** | Day | 10 | 90 | 4 | melee, 0.8 s | small | Fast, arrives in packs |
-| **Shambler** | Day + Night | 25 | 45 | 6 | melee, 1.2 s | medium | Slow, steady |
+| **Shambler** | Day + Night | 25 | 45 | 6 | melee, 1.2 s | medium | Slow and dumb: no pathfinding. Walks straight at its target with a shambling sway, and attacks any building in the way |
 | **Brute** | Day + Night | 90 | 30 | 18 | melee, 2.0 s | large | Tanky, breaks walls quickly (`buildingDamageMultiplier = 2`) |
 | **Wraith** | Night only | 40 | 70 | 8 | ranged, 2.5 s, range 6 tiles | medium | Flies directly toward its target. Ignores walls and `rock` for movement. Stops when its target is in range and fires slow shots. Spawns by the normal rules (section 6) |
 | **Hellhound** | Day, from day 5 (`minDay = 5`) | 35 | 120 | 10 | melee, 1.0 s | medium | Rare, fast flanker |
@@ -219,7 +220,7 @@ All enemies are defined as data in `src/data/enemies.ts`. Adding an enemy means 
 - Purely visual: the simulation emits `enemy:attacked` (`x`, `y`, `angle`, `size`, `elite`) and the renderer keeps a short list of active swipes. Swipes age with simulation time, so they freeze while paused and speed up with the debug time scale.
 - Wraith shots (M9) get a small purple flash at the Wraith instead.
 
-**Pathfinding:** Ground enemies follow flow fields with smoothed movement. Wraiths steer directly. Section 15.1 has the details.
+**Pathfinding:** Ground enemies follow flow fields with smoothed movement, except Shamblers (navigation 'direct'), which walk straight at their target, sway (wiggle: up to 0.55 rad, two out-of-step waves with a per-enemy phase), and attack whatever building is on the straight line. Wraiths steer directly. Section 15.1 has the details.
 
 ### 7.1 Elites
 
@@ -487,6 +488,10 @@ Totems never target a Wraith that is still fading in.
 
 **Build mode controls:** B toggles build mode (it does not pause). Esc, Tab, and E also leave build mode (and do only that: no pause screen, equipment screen, or harvest). Keys 1–8 pick from the hotbar. Left click places at the ghost; holding it and dragging places on every new tile the cursor crosses (painting walls or marsh). Right click removes the building under the cursor. While build mode is on, the mouse builds instead of casting Bolt and Chain; Q, E, and R still work. The ghost is red with the reason (including "Not enough resources") when the choice cannot go there.
 
+**Build ghost:** the tooltip shows the name and cost, a one-line description of what it does, and the reason in red when it cannot be placed. The Bone Totem and Corpse Collector ghosts also draw a dashed circle showing their reach (6 and 3 tiles).
+
+**Collector link:** when a Corpse Collector harvests, a thin gray jagged line connects it to the corpse for 0.35 s.
+
 **Grave Lantern light:** each Lantern lights a 4-tile radius around itself at night, in addition to the player's own light.
 
 **Building rules:**
@@ -531,7 +536,7 @@ The Phylactery is the binding the necromancer is building. It is the reason the 
 |---|---|
 | Footprint | 3×3, centered on world tile (0, 0) |
 | Placement | Pre-placed at the start of the run. The player cannot build, move, remove, or refund it |
-| No-build zone | The 16 tiles bordering the footprint (the inner ring, section 10.5). The player cannot build there, so the respawn tile is always free. Nothing is built there at the start either |
+| No-build zone | The 16 tiles bordering the footprint (the inner ring, section 10.5). The player cannot build there, so the respawn tile is always free. Only the starting Totem stands there, and the player can walk through it |
 | HP | 600 |
 | Repair | Hold R within 2 tiles. Costs 1 Bone per 10 HP (it has no build cost to scale from) |
 | Drops on destruction | None |
@@ -555,7 +560,7 @@ Every run starts with a small free defense, generated from the run's seed so it 
 1. Place the Phylactery at the center.
 2. Place the player on the inner ring (below), directly south of the Phylactery at tile (0, 2).
 3. **Walls:** the **wall ring** is the 24 tiles exactly 2 tiles out from the Phylactery footprint (the border of the 7×7 square centered on it). Each wall-ring tile gets a Bone Wall with a 60% chance (`startingWallChance = 0.6`). Each wall passes the normal footprint check. If every tile got a wall, one random wall is removed so the player is never sealed in.
-4. **Totem:** after the walls are placed, one Bone Totem is placed on a random free tile of the **totem ring**: the 32 tiles exactly 3 tiles out from the footprint (the border of the 9×9 square), one tile past the walls, so it covers the approach. It is guaranteed: that ring is inside the clear area (section 4.1), so every tile is buildable.
+4. **Totem:** after the walls are placed, one Bone Totem is placed on a random free tile of the **inner ring**: the 16 tiles directly around the footprint (the border of the 5×5 square), never the player's tile (0, 2). It is guaranteed: the inner ring is always clear (section 4.1). The inner ring is the no-build zone (section 10.4); this Totem is the only building allowed there. The player can walk through it like a Bone Door; enemies cannot.
 
 Gaps in the wall ring are expected. They give enemies a route in, so the first few days are about filling and reinforcing the ring, and adding doors.
 

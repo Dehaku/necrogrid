@@ -16,13 +16,22 @@ export interface Building {
   readonly maxHp: number;
   /** Starting buildings are free: no refund and no drop. */
   readonly free: boolean;
+  /** The player can walk through it (Bone Doors, and the starting Totem). Enemies never can. */
+  readonly playerPassable: boolean;
   /** Seconds until it can act again (Totem shot, Collector harvest). */
   cooldown: number;
   /** Repair paid for but not yet used, per resource (fractions of a unit). */
   repairCredit: Partial<Record<ResourceId, number>>;
 }
 
-export function createBuilding(id: number, kind: BuildingKind, x: number, y: number, free: boolean): Building {
+export function createBuilding(
+  id: number,
+  kind: BuildingKind,
+  x: number,
+  y: number,
+  free: boolean,
+  playerPassable: boolean = BUILDINGS[kind].playerPassable,
+): Building {
   const def = BUILDINGS[kind];
   return {
     id,
@@ -32,6 +41,7 @@ export function createBuilding(id: number, kind: BuildingKind, x: number, y: num
     hp: def.hp,
     maxHp: def.hp,
     free,
+    playerPassable,
     cooldown: 0,
     repairCredit: {},
   };

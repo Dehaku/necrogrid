@@ -67,6 +67,8 @@ export interface GameEvents {
   /** Demons destroyed a building; `drop` is what was actually added. */
   'building:destroyed': { id: number; kind: BuildingKind; x: number; y: number; drop: ResourceAmounts };
   'building:repaired': { amount: number };
+  /** A Corpse Collector harvested a corpse: from the Collector's center to the corpse. */
+  'collector:collected': { fromX: number; fromY: number; toX: number; toY: number };
   'gear:crafted': { id: GearId };
   /** `id` undefined means the slot was emptied. */
   'gear:equipped': { slot: GearSlot; id: GearId | undefined };

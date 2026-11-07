@@ -7,7 +7,7 @@
 import { CHAIN } from '../data/spells';
 import { TILE_SIZE } from '../data/tuning';
 import { RESOURCE_ORDER, RESOURCES, type ResourceAmounts } from '../data/resources';
-import { DAMAGE_NUMBERS, PICKUP_POPUPS, SWIPE } from '../data/ui';
+import { COLLECTOR_LINK, DAMAGE_NUMBERS, PICKUP_POPUPS, SWIPE } from '../data/ui';
 import type { EventBus, GameEvents } from '../core/events';
 import type { Point } from '../core/input';
 import { Rng } from '../core/rng';
@@ -111,6 +111,7 @@ export class Effects {
   private numbers: DamageNumber[] = [];
   private chains: ChainBolt[] = [];
   private popups: Popup[] = [];
+  private collectorLinks: ChainBolt[] = [];
   /** Visual-only randomness (chain jaggedness). Separate from the simulation's RNG streams. */
   private readonly visualRng = new Rng(0x7a11);
   private unsubscribe: (() => void)[] = [];
@@ -126,6 +127,12 @@ export class Effects {
         this.numbers.push({ x: e.x, y: e.y - 0.4, text: String(Math.round(e.amount)), age: 0 }),
       ),
       events.on('chain:cast', (e) => this.chains.push({ path: jaggedPath(e.points, this.visualRng), age: 0 })),
+      events.on('collector:collected', (e) =>
+        this.collectorLinks.push({
+          path: jaggedPath([{ x: e.fromX, y: e.fromY }, { x: e.toX, y: e.toY }], this.visualRng, COLLECTOR_LINK.segmentLength, COLLECTOR_LINK.jitter),
+          age: 0,
+        }),
+      ),
       // "+3 Bone" style lines, one per resource gained: harvests, refunds, and destruction drops.
       events.on('corpse:harvested', (e) => this.popupLoot(e.x, e.y, e.loot)),
       events.on('building:removed', (e) => this.popupLoot(e.x, e.y, e.refund)),
@@ -156,6 +163,7 @@ export class Effects {
     this.numbers = [];
     this.chains = [];
     this.popups = [];
+    this.collectorLinks = [];
   }
 
   advance(dt: number): void {
@@ -163,10 +171,31 @@ export class Effects {
     for (const n of this.numbers) n.age += dt;
     for (const c of this.chains) c.age += dt;
     for (const p of this.popups) p.age += dt;
+    for (const l of this.collectorLinks) l.age += dt;
+    this.collectorLinks = this.collectorLinks.filter((l) => l.age < COLLECTOR_LINK.fade);
     this.swipes = this.swipes.filter((s) => s.age < SWIPE.duration);
     this.numbers = this.numbers.filter((n) => n.age < DAMAGE_NUMBERS.lifetime);
     this.chains = this.chains.filter((c) => c.age < CHAIN.fade);
     this.popups = this.popups.filter((p) => p.age < PICKUP_POPUPS.lifetime);
+  }
+
+  /** Thin gray jagged lines from Collectors to the corpses they just took, fading out. */
+  private drawCollectorLinks(ctx: CanvasRenderingContext2D, camera: Camera): void {
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = COLLECTOR_LINK.color;
+    ctx.lineWidth = 1.5;
+    for (const l of this.collectorLinks) {
+      ctx.globalAlpha = 1 - l.age / COLLECTOR_LINK.fade;
+      ctx.beginPath();
+      l.path.forEach((p, i) => {
+        const s = camera.worldToScreen(p.x, p.y);
+        if (i === 0) ctx.moveTo(s.x, s.y);
+        else ctx.lineTo(s.x, s.y);
+      });
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   private drawPopups(ctx: CanvasRenderingContext2D, camera: Camera): void {
@@ -232,6 +261,7 @@ export class Effects {
 
   /** Chain links and damage numbers, drawn over everything in the world (after lighting). */
   drawOverlay(ctx: CanvasRenderingContext2D, camera: Camera): void {
+    this.drawCollectorLinks(ctx, camera);
     this.drawChains(ctx, camera);
     this.drawPopups(ctx, camera);
     if (!this.showDamageNumbers) return;

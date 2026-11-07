@@ -25,32 +25,40 @@ export interface BuildingDef {
   readonly color: string;
   /** Short text drawn on the placeholder square. */
   readonly label: string;
+  /** One line for the build ghost: what it does. */
+  readonly description: string;
 }
 
 export const BUILDINGS: Readonly<Record<BuildingKind, BuildingDef>> = {
   wall: {
     kind: 'wall', name: 'Bone Wall', w: 1, h: 1, cost: { bone: 4 }, hp: 150,
     noSpawnRadius: DEFAULT_NO_SPAWN_RADIUS, playerPassable: false, color: '#cfc6ad', label: '',
+    description: 'Blocks enemies and Wraith shots.',
   },
   door: {
     kind: 'door', name: 'Bone Door', w: 1, h: 1, cost: { bone: 12 }, hp: 150,
     noSpawnRadius: DEFAULT_NO_SPAWN_RADIUS, playerPassable: true, color: '#cfc6ad', label: '',
+    description: 'A wall you can walk through. Enemies cannot.',
   },
   totem: {
     kind: 'totem', name: 'Bone Totem', w: 1, h: 1, cost: { bone: 10, ichor: 5 }, hp: 80,
     noSpawnRadius: 5, playerPassable: false, color: '#7b5ea7', label: 'T',
+    description: 'Shoots the nearest enemy within 6 tiles.',
   },
   collector: {
     kind: 'collector', name: 'Corpse Collector', w: 1, h: 1, cost: { bone: 8, flesh: 2 }, hp: 80,
     noSpawnRadius: DEFAULT_NO_SPAWN_RADIUS, playerPassable: false, color: '#5f8a55', label: 'C',
+    description: 'Harvests corpses within 3 tiles for you.',
   },
   altar: {
     kind: 'altar', name: 'Altar', w: 2, h: 2, cost: { flesh: 10, ichor: 10 }, hp: 150,
     noSpawnRadius: DEFAULT_NO_SPAWN_RADIUS, playerPassable: false, color: '#8a3b4b', label: 'ALTAR',
+    description: 'Crafting station. +4 mana regen within 5 tiles.',
   },
   lantern: {
     kind: 'lantern', name: 'Grave Lantern', w: 1, h: 1, cost: { bone: 3, flesh: 2 }, hp: 40,
     noSpawnRadius: DEFAULT_NO_SPAWN_RADIUS, playerPassable: false, color: '#d9b44a', label: 'L',
+    description: 'Lights 4 tiles around it at night.',
   },
 };
 
@@ -59,9 +67,9 @@ export const BUILDINGS: Readonly<Record<BuildingKind, BuildingDef>> = {
  */
 export const TERRAIN_EDITS = {
   /** Turn a grass or dirt tile into marsh. */
-  marsh: { name: 'Marsh', cost: { flesh: 10, ichor: 1 } },
+  marsh: { name: 'Marsh', cost: { flesh: 10, ichor: 1 }, description: 'Slows you and ground demons by half.' },
   /** Fill any marsh tile, wild or player-made, into dirt. */
-  fill: { name: 'Fill', cost: { bone: 5, flesh: 5 } },
+  fill: { name: 'Fill', cost: { bone: 5, flesh: 5 }, description: 'Turns marsh back into buildable dirt.' },
 } as const;
 
 /** Build hotbar order: keys 1–8. */
@@ -112,8 +120,8 @@ export const STARTING_BASE = {
   wallChance: 0.6,
   /** The wall ring is this many tiles out from the Phylactery's footprint. */
   wallRingDistance: 2,
-  /** The starting Totem goes on a random free tile of the ring one tile past the walls. */
-  totemRingDistance: 3,
+  /** The starting Totem can be walked through by the player (not by enemies), like a Bone Door. */
+  totemPlayerPassable: true,
 } as const;
 
 export const PHYLACTERY = {
