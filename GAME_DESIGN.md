@@ -568,6 +568,8 @@ Testing a full run takes about an hour, so the build needs debug tools from earl
 
 Time scale runs more fixed 1/60 s steps per frame; it never changes the step size. That keeps sped-up runs deterministic.
 
+The panel is an HTML overlay (top-left), shown by default when `?debug` is on. "Set seed" reloads the page with `?seed=N`. Keys typed into its text fields are not game input.
+
 ## 14. Milestones (build order for Claude Code)
 
 Each milestone should be playable or testable on its own. Do not start a milestone until the previous one passes its acceptance criteria. Use the debug panel (section 13) to reach the state each check needs. Commit at the end of each milestone.
@@ -771,6 +773,7 @@ necrogrid/
       loot.ts
       terrain.ts             # map generation tuning (coverage, cluster sizes)
       controls.ts            # key bindings and their labels
+      time.ts                # day cycle phases, lighting, day ring
   tests/
     chain.test.ts
     crafting.test.ts

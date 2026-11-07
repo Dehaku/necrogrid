@@ -34,4 +34,9 @@ export interface GameEvents {
   'game:resumed': { reason: PauseReason };
   /** A chunk was generated. Flow fields listen for this from M3. */
   'chunk:generated': { chunkX: number; chunkY: number };
+  /** A phase started. `phase:day` also marks the day counter going up. */
+  'phase:day': { day: number };
+  'phase:dusk': { day: number };
+  'phase:night': { day: number };
+  'phase:dawn': { day: number };
 }

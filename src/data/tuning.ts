@@ -17,6 +17,9 @@ export const TICK_RATE = 60;
 /** Cap on real elapsed time per frame, in seconds. Time scale is applied after this cap. */
 export const MAX_FRAME_TIME = 0.25;
 
+/** Debug time scale choices (section 13). */
+export const TIME_SCALES = [1, 2, 5, 10, 20] as const;
+
 export const PLAYER = {
   /** Pixels per second. */
   moveSpeed: 120,

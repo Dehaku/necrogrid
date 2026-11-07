@@ -115,6 +115,12 @@ export function boundKeys(controls: readonly ControlBinding[]): Set<string> {
   return new Set(controls.flatMap((c) => c.keys));
 }
 
+function isTextField(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement
+  );
+}
+
 /**
  * Connects an Input to browser events. `toLogical` converts window client coordinates
  * to logical view pixels. Returns a function that removes the listeners.
@@ -126,11 +132,14 @@ export function bindInput(
   preventKeys: ReadonlySet<string>,
 ): () => void {
   const onKeyDown = (e: KeyboardEvent): void => {
+    // Typing in a text field (e.g. the debug panel) is not game input.
+    if (isTextField(e.target)) return;
     if (preventKeys.has(e.code)) e.preventDefault();
     input.keyDown(e.code, e.repeat);
   };
   const onKeyUp = (e: KeyboardEvent): void => {
-    if (preventKeys.has(e.code)) e.preventDefault();
+    // Always release, so a key pressed in the game and released in a text field never sticks.
+    if (preventKeys.has(e.code) && !isTextField(e.target)) e.preventDefault();
     input.keyUp(e.code);
   };
   const onMouseDown = (e: MouseEvent): void => {

@@ -10,7 +10,7 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 
 ## Current status
 
-- Milestone: **M1 done** (procedural chunks, rock collision, marsh slow). Next: M2. Update this line when a milestone is finished.
+- Milestone: **M2 done** (day/night cycle, night lighting, HUD day ring, debug panel). Next: M3. Update this line when a milestone is finished.
 
 ## Commands
 
