@@ -3,6 +3,34 @@
 import { TILE_PROPS, type TileId } from '../data/terrain';
 import type { Point } from '../core/input';
 
+/** A tile footprint: top-left tile (x, y), w × h tiles. */
+export interface Footprint {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** One number per tile coordinate, for Map keys. Valid for |x|, |y| < 32768. */
+export function tileKey(x: number, y: number): number {
+  return (x + 0x8000) * 0x10000 + (y + 0x8000);
+}
+
+/** Distance from a point to the nearest point of a footprint (0 inside it). */
+export function distanceToFootprint(x: number, y: number, fp: Footprint): number {
+  const nx = Math.min(Math.max(x, fp.x), fp.x + fp.w);
+  const ny = Math.min(Math.max(y, fp.y), fp.y + fp.h);
+  return Math.hypot(x - nx, y - ny);
+}
+
+/** Nearest point of a footprint to (x, y). */
+export function nearestPointOnFootprint(x: number, y: number, fp: Footprint): Point {
+  return {
+    x: Math.min(Math.max(x, fp.x), fp.x + fp.w),
+    y: Math.min(Math.max(y, fp.y), fp.y + fp.h),
+  };
+}
+
 /** Ungenerated tiles (undefined) are not walkable. */
 export function isWalkableTile(tile: TileId | undefined): boolean {
   return tile !== undefined && TILE_PROPS[tile].walkable;

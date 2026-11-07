@@ -20,7 +20,25 @@ export const MAX_FRAME_TIME = 0.25;
 /** Debug time scale choices (section 13). */
 export const TIME_SCALES = [1, 2, 5, 10, 20] as const;
 
+/** Ground navigation (section 15.1) and targeting (section 7). */
+export const NAV = {
+  /** Flow field window radius in tiles around its goal. */
+  fieldRadius: 48,
+  /** Extra path cost for stepping into a building tile. */
+  buildingPathCost: 20,
+  /** Degrees per second an enemy's heading can turn. */
+  turnRate: 540,
+  /** Enemies closer than this (tiles) push each other apart. */
+  separationRadius: 1.0,
+  separationWeight: 1.2,
+  /** Switch targets only when the other is closer than this × the current target's distance. */
+  targetSwitchRatio: 0.8,
+  /** Spatial hash cell size in tiles. */
+  hashCellSize: 2,
+} as const;
+
 export const PLAYER = {
+  maxHp: 100,
   /** Pixels per second. */
   moveSpeed: 120,
   /** Collision radius in tiles. */

@@ -10,7 +10,8 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 
 ## Current status
 
-- Milestone: **M2 done** (day/night cycle, night lighting, HUD day ring, debug panel). Next: M3. Update this line when a milestone is finished.
+- Milestone: **M3 done** (enemies, flow fields, targeting, spawn director, no-spawn grid, debug spawn tools). Next: M4. Update this line when a milestone is finished.
+- `SPAWN.activeRoster` in `src/data/spawn.ts` lists the enemies the director spawns. Add Wraith and Hellhound there in M9.
 
 ## Commands
 
@@ -24,7 +25,8 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 - TypeScript + Vite + Canvas 2D. No game engine, no runtime dependencies beyond what M0 sets up.
 - **Data over code:** every tunable number lives in `src/data/`. Files there hold data only. Logic that uses them has a different filename elsewhere.
 - **Deterministic simulation:** all randomness goes through the seeded RNG in `src/core/rng.ts`. Never use `Math.random`. The one exception is picking a new run's seed with `crypto.getRandomValues` (GAME_DESIGN.md section 8.5).
-- **Fixed timestep:** logic runs in 1/60 s steps. Only `src/render/` and `src/ui/` draw; simulation code never touches the canvas.
+- **Fixed timestep:** logic runs in 1/60 s steps. Only `src/render/`, `src/ui/`, and `src/debug/` draw; simulation code (`src/game.ts` and everything it calls) never touches the canvas or the DOM.
+- **Hot loops use typed arrays and indexed loops** (flow fields, chunk lookups). Keep `getTile` and field builds allocation-free; a field rebuild should stay around 3 ms.
 - **World units are tiles.** Tile (x, y) covers [x, x + 1) × [y, y + 1). Speeds in the doc are px/s; divide by `TILE_SIZE`.
 - **Controls come from `src/data/controls.ts`.** Never hard-code a key code elsewhere.
 - Systems talk through the event bus in `src/core/events.ts`, not by importing each other's internals.

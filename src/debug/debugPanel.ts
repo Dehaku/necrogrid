@@ -1,12 +1,28 @@
 // Debug panel: testing tools, enabled only with ?debug in the URL. Toggled with backtick.
-// GAME_DESIGN.md section 13. M2 tools: time scale, skip phase, jump to day, seed, stats.
+// GAME_DESIGN.md section 13. Tools so far: M2 (time, seed, stats) and M3 (spawning, overlays).
 
 import { CONTROLS } from '../data/controls';
+import { ENEMIES, type EnemyId } from '../data/enemies';
 import { DAY_CYCLE } from '../data/time';
 import { TIME_SCALES } from '../data/tuning';
 import { keysForAction } from '../core/input';
 import type { FixedStepLoop } from '../core/loop';
 import type { DayCycle } from '../time/dayCycle';
+import type { GoalId } from '../world/flowField';
+
+/** Enemy types the "click to spawn" tool offers. Wraith joins once its attack exists (M9). */
+const SPAWNABLE: readonly EnemyId[] = ['imp', 'shambler', 'brute', 'hellhound'];
+
+/** Settings the panel changes and the game reads every frame. */
+export interface DebugSettings {
+  spawnPaused: boolean;
+  /** While on, a left click in the world spawns `spawnType` there instead of doing anything else. */
+  clickSpawn: boolean;
+  spawnType: EnemyId;
+  spawnElite: boolean;
+  flowOverlay: 'off' | GoalId;
+  spawnOverlay: boolean;
+}
 
 export interface DebugHooks {
   loop: FixedStepLoop;
@@ -16,29 +32,41 @@ export interface DebugHooks {
   restartWithSeed(seed: number): void;
   /** Counts by entity type, for the stats readout. */
   entityCounts(): Record<string, number>;
+  /** Extra readout lines (HP, spawn budget, ...). */
+  extraReadout(): string[];
 }
 
 /** Refresh the text readouts this often, in milliseconds. */
 const READOUT_INTERVAL = 250;
 
 const STYLE = `
-.ng-debug { position: fixed; top: 8px; left: 8px; z-index: 10; width: 230px; padding: 8px 10px;
-  background: rgba(10, 8, 14, 0.88); color: #ddd6c8; border: 1px solid #3a3346; border-radius: 6px;
-  font: 12px/1.45 ui-monospace, Consolas, monospace; user-select: none; }
+.ng-debug { position: fixed; top: 8px; left: 8px; z-index: 10; width: 240px; max-height: calc(100vh - 16px);
+  overflow-y: auto; padding: 8px 10px; background: rgba(10, 8, 14, 0.88); color: #ddd6c8;
+  border: 1px solid #3a3346; border-radius: 6px; font: 12px/1.45 ui-monospace, Consolas, monospace; user-select: none; }
 .ng-debug[hidden] { display: none; }
 .ng-debug h2 { margin: 0 0 6px; font-size: 12px; color: #b9a3ea; letter-spacing: 0.05em; }
 .ng-debug .row { display: flex; gap: 4px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
 .ng-debug .label { color: #8f8799; width: 100%; margin-top: 6px; }
-.ng-debug button { font: inherit; padding: 1px 6px; background: #241f2c; color: #ddd6c8;
+.ng-debug button, .ng-debug select { font: inherit; padding: 1px 6px; background: #241f2c; color: #ddd6c8;
   border: 1px solid #4a4158; border-radius: 3px; cursor: pointer; }
 .ng-debug button:hover { background: #312a3c; }
 .ng-debug button.active { background: #5b4785; border-color: #8a72c2; color: #fff; }
-.ng-debug input { font: inherit; width: 90px; padding: 1px 4px; background: #15121a; color: #ddd6c8;
-  border: 1px solid #4a4158; border-radius: 3px; }
+.ng-debug input[type=text], .ng-debug input[type=number] { font: inherit; width: 90px; padding: 1px 4px;
+  background: #15121a; color: #ddd6c8; border: 1px solid #4a4158; border-radius: 3px; }
+.ng-debug label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
 .ng-debug pre { margin: 6px 0 0; font: inherit; white-space: pre; color: #c9c1b4; }
 `;
 
 export class DebugPanel {
+  readonly settings: DebugSettings = {
+    spawnPaused: false,
+    clickSpawn: false,
+    spawnType: 'imp',
+    spawnElite: false,
+    flowOverlay: 'off',
+    spawnOverlay: false,
+  };
+
   private readonly root: HTMLDivElement;
   private readonly readout: HTMLPreElement;
   private readonly scaleButtons = new Map<number, HTMLButtonElement>();
@@ -56,6 +84,7 @@ export class DebugPanel {
     style.textContent = STYLE;
     document.head.append(style);
 
+    const typeOptions = SPAWNABLE.map((t) => `<option value="${t}">${ENEMIES[t].name}</option>`).join('');
     this.root = document.createElement('div');
     this.root.className = 'ng-debug';
     this.root.innerHTML = `
@@ -63,9 +92,7 @@ export class DebugPanel {
       <div class="label">Time scale</div>
       <div class="row" data-scales></div>
       <div class="label">Time</div>
-      <div class="row">
-        <button data-skip>Skip phase</button>
-      </div>
+      <div class="row"><button data-skip>Skip phase</button></div>
       <div class="row">
         <input data-day type="number" min="1" value="${DAY_CYCLE.winDay}" />
         <button data-jump>Jump to day</button>
@@ -75,6 +102,23 @@ export class DebugPanel {
         <input data-seed type="text" inputmode="numeric" value="${hooks.seed}" />
         <button data-restart>Restart</button>
       </div>
+      <div class="label">Spawning</div>
+      <div class="row"><label><input data-spawn-paused type="checkbox" /> Pause spawning</label></div>
+      <div class="row">
+        <label><input data-click-spawn type="checkbox" /> Click spawns</label>
+        <select data-spawn-type>${typeOptions}</select>
+        <label><input data-spawn-elite type="checkbox" /> Elite</label>
+      </div>
+      <div class="label">Overlays</div>
+      <div class="row">
+        Flow field
+        <select data-flow>
+          <option value="off">off</option>
+          <option value="player">player</option>
+          <option value="phylactery">phylactery</option>
+        </select>
+      </div>
+      <div class="row"><label><input data-spawn-overlay type="checkbox" /> Spawn map</label></div>
       <pre data-readout></pre>`;
     document.body.append(this.root);
     this.readout = this.query<HTMLPreElement>('[data-readout]');
@@ -100,9 +144,23 @@ export class DebugPanel {
       if (/^\d+$/.test(seedInput.value.trim())) hooks.restartWithSeed(Number(seedInput.value.trim()) >>> 0);
     });
 
-    // Buttons keep focus after a click; drop it so game keys never land on them.
+    this.bindCheckbox('[data-spawn-paused]', (on) => (this.settings.spawnPaused = on));
+    this.bindCheckbox('[data-click-spawn]', (on) => (this.settings.clickSpawn = on));
+    this.bindCheckbox('[data-spawn-elite]', (on) => (this.settings.spawnElite = on));
+    this.bindCheckbox('[data-spawn-overlay]', (on) => (this.settings.spawnOverlay = on));
+    const typeSelect = this.query<HTMLSelectElement>('[data-spawn-type]');
+    typeSelect.addEventListener('change', () => (this.settings.spawnType = typeSelect.value as EnemyId));
+    const flowSelect = this.query<HTMLSelectElement>('[data-flow]');
+    flowSelect.addEventListener('change', () => (this.settings.flowOverlay = flowSelect.value as DebugSettings['flowOverlay']));
+
+    // Controls keep focus after a click; drop it so game keys never land on them.
     this.root.addEventListener('click', (e) => {
-      if (e.target instanceof HTMLButtonElement) e.target.blur();
+      if (e.target instanceof HTMLButtonElement || (e.target instanceof HTMLInputElement && e.target.type === 'checkbox')) {
+        e.target.blur();
+      }
+    });
+    this.root.addEventListener('change', (e) => {
+      if (e.target instanceof HTMLSelectElement) e.target.blur();
     });
 
     const toggleKeys = new Set(keysForAction(CONTROLS, 'debug'));
@@ -135,6 +193,11 @@ export class DebugPanel {
     this.tickTimeTotal += ms;
   }
 
+  private bindCheckbox(selector: string, apply: (on: boolean) => void): void {
+    const box = this.query<HTMLInputElement>(selector);
+    box.addEventListener('change', () => apply(box.checked));
+  }
+
   private setTimeScale(scale: number): void {
     this.hooks.loop.timeScale = scale;
     for (const [value, button] of this.scaleButtons) button.classList.toggle('active', value === scale);
@@ -148,6 +211,7 @@ export class DebugPanel {
       `Run time  ${this.hooks.cycle.elapsed.toFixed(1)} s`,
       `FPS ${this.fps.toFixed(0)}   tick ${this.msPerTick.toFixed(3)} ms`,
       `Seed ${this.hooks.seed}`,
+      ...this.hooks.extraReadout(),
       ...Object.entries(this.hooks.entityCounts()).map(([name, count]) => `${name.padEnd(10)}${count}`),
     ];
     this.readout.textContent = lines.join('\n');

@@ -1,8 +1,13 @@
 // Placeholder shapes (GAME_DESIGN.md section 15, placeholder art rule).
 
+import { PHYLACTERY } from '../data/buildings';
+import { ELITE, type EnemyDef } from '../data/enemies';
 import { TILE_PROPS, UNGENERATED_COLOR, type TileId } from '../data/terrain';
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
+import type { Footprint } from '../world/grid';
 import type { Camera } from './camera';
+
+const OUTLINE_COLOR = '#0d0b10';
 
 const GRID_COLOR = 'rgba(255, 255, 255, 0.035)';
 const ORIGIN_COLOR = 'rgba(155, 127, 209, 0.12)';
@@ -53,6 +58,106 @@ export function drawTerrain(ctx: CanvasRenderingContext2D, camera: Camera, tiles
     ctx.lineTo(VIEW_WIDTH, sy);
   }
   ctx.stroke();
+}
+
+/** Phylactery placeholder: a 3 × 3 block with a bright edge and a label. */
+export function drawPhylactery(ctx: CanvasRenderingContext2D, camera: Camera, fp: Footprint): void {
+  const p = camera.worldToScreen(fp.x, fp.y);
+  const w = fp.w * TILE_SIZE;
+  const h = fp.h * TILE_SIZE;
+  if (p.x > VIEW_WIDTH || p.y > VIEW_HEIGHT || p.x + w < 0 || p.y + h < 0) return;
+  ctx.fillStyle = PHYLACTERY.color;
+  ctx.fillRect(p.x, p.y, w, h);
+  ctx.strokeStyle = PHYLACTERY.edgeColor;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(p.x + 1, p.y + 1, w - 2, h - 2);
+  ctx.fillStyle = PHYLACTERY.edgeColor;
+  ctx.font = '600 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('PHYLACTERY', p.x + w / 2, p.y + h / 2);
+}
+
+/** Mixes two #rrggbb colors; t = 0 gives a, t = 1 gives b. */
+function mixHex(a: string, b: string, t: number): string {
+  const channel = (hex: string, i: number): number => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  const parts = [0, 1, 2].map((i) => Math.round(channel(a, i) + (channel(b, i) - channel(a, i)) * t));
+  return `rgb(${parts.join(', ')})`;
+}
+
+/** Elite marker: a circle under the enemy pulsing dark yellow ↔ light yellow (section 7.1). */
+function drawEliteMarker(ctx: CanvasRenderingContext2D, sx: number, sy: number, time: number): void {
+  const t = (1 - Math.cos((2 * Math.PI * time) / ELITE.markerPeriod)) / 2;
+  ctx.beginPath();
+  ctx.arc(sx, sy, ELITE.markerRadius * TILE_SIZE, 0, Math.PI * 2);
+  ctx.fillStyle = mixHex(ELITE.markerDark, ELITE.markerLight, t);
+  ctx.globalAlpha = 0.85;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+/** An enemy as its placeholder shape, rotated to its heading. `time` drives the elite pulse. */
+export function drawEnemy(
+  ctx: CanvasRenderingContext2D,
+  camera: Camera,
+  def: EnemyDef,
+  elite: boolean,
+  x: number,
+  y: number,
+  heading: number,
+  time: number,
+): void {
+  const p = camera.worldToScreen(x, y);
+  const margin = TILE_SIZE * 2;
+  if (p.x < -margin || p.y < -margin || p.x > VIEW_WIDTH + margin || p.y > VIEW_HEIGHT + margin) return;
+  if (elite) drawEliteMarker(ctx, p.x, p.y, time);
+
+  const s = def.drawSize * TILE_SIZE;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(heading);
+  ctx.beginPath();
+  switch (def.shape) {
+    case 'triangle':
+      ctx.moveTo(s, 0);
+      ctx.lineTo(-s * 0.8, -s * 0.8);
+      ctx.lineTo(-s * 0.8, s * 0.8);
+      ctx.closePath();
+      break;
+    case 'circle':
+      ctx.arc(0, 0, s, 0, Math.PI * 2);
+      break;
+    case 'square':
+      ctx.rect(-s, -s, s * 2, s * 2);
+      break;
+    case 'diamond':
+      ctx.moveTo(s, 0);
+      ctx.lineTo(0, -s);
+      ctx.lineTo(-s, 0);
+      ctx.lineTo(0, s);
+      ctx.closePath();
+      break;
+    case 'hexagon':
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI / 3) * i;
+        if (i === 0) ctx.moveTo(Math.cos(a) * s, Math.sin(a) * s);
+        else ctx.lineTo(Math.cos(a) * s, Math.sin(a) * s);
+      }
+      ctx.closePath();
+      break;
+  }
+  ctx.fillStyle = def.color;
+  ctx.fill();
+  ctx.strokeStyle = OUTLINE_COLOR;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // Facing tick, so heading and turning are readable on round shapes too.
+  ctx.beginPath();
+  ctx.moveTo(s * 0.3, 0);
+  ctx.lineTo(s * 0.9, 0);
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** The necromancer: a square rotated to face the aim direction, with a marker on its front. */

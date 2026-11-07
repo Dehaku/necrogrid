@@ -1,6 +1,7 @@
 // Typed event bus. Systems talk through this instead of importing each other's internals.
 // GAME_DESIGN.md section 15.
 
+import type { EnemyId } from '../data/enemies';
 import type { PauseReason } from './loop';
 
 export type Handler<T> = (payload: T) => void;
@@ -39,4 +40,7 @@ export interface GameEvents {
   'phase:dusk': { day: number };
   'phase:night': { day: number };
   'phase:dawn': { day: number };
+  'enemy:spawned': { id: number; type: EnemyId; elite: boolean };
+  'player:damaged': { amount: number; hp: number };
+  'phylactery:damaged': { amount: number; hp: number };
 }

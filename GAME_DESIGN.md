@@ -191,7 +191,7 @@ All enemies are defined as data in `src/data/enemies.ts`. Adding an enemy means 
 | **Wraith** | Night only | 40 | 70 | 8 | ranged, 2.5 s, range 6 tiles | medium | Flies directly toward its target. Ignores walls and `rock` for movement. Stops when its target is in range and fires slow shots. Spawns by the normal rules (section 6) |
 | **Hellhound** | Day, from day 5 (`minDay = 5`) | 35 | 120 | 10 | melee, 1.0 s | medium | Rare, fast flanker |
 
-**Melee range:** 2 tiles, measured center to center. A melee enemy attacks its target, or a building in its way, once it is within that range.
+**Melee range:** 2 tiles, measured center to center. A melee enemy attacks its target, or a building in its way, once it is within that range. For a building, the distance is measured from the enemy's center to the nearest point of the building's footprint, and the enemy's radius is subtracted from the range (so an enemy attacks a building from up to 1.5 tiles away from its edge).
 
 **Shared enemy fields:** `id`, `name`, `hp`, `speed`, `damage`, `attackInterval`, `range`, `radius` (default 0.5 tile), `spawnWeightDay`, `spawnWeightNight`, `phases` (`day`, `night`, or both), `minDay`, `movement` (`ground` or `flying`), `projectileSpeed` (ranged only), `corpseSize`, `color`, `shape`.
 
@@ -560,13 +560,15 @@ Testing a full run takes about an hour, so the build needs debug tools from earl
 | Stats readout | FPS, tick time, entity counts by type | M2 |
 | Spawn enemy | Spawn a chosen enemy type at the cursor, optionally as an elite | M3 |
 | Flow field overlay | Draw the player and Phylactery field directions and costs | M3 |
-| Spawn overlay | Draw both spawn rings, shade no-spawn tiles, and mark tried spawn points: green passed, red failed | M3 |
+| Spawn overlay | An inset map (bottom-right, ±52 tiles around the player, because the rings are off screen) showing both spawn rings, the view and its margin, no-spawn tiles, enemies, and tried pack centers: green passed, red failed | M3 |
 | Pause spawning | Stop the spawn director | M3 |
 | God mode | Player and Phylactery take no damage | M4 |
 | Grant resources | Add 50 of any resource | M6 |
 | Unlock all gear | Unlock every item in section 10.3 | M8 |
 
 Time scale runs more fixed 1/60 s steps per frame; it never changes the step size. That keeps sped-up runs deterministic.
+
+"Spawn enemy" is a "Click spawns" checkbox: while it is on, a left click in the world spawns the chosen type there (optionally elite) and does nothing else. The Wraith is left out of the list until its attack exists (M9).
 
 The panel is an HTML overlay (top-left), shown by default when `?debug` is on. "Set seed" reloads the page with `?seed=N`. Keys typed into its text fields are not game input.
 
@@ -707,7 +709,8 @@ necrogrid/
   GAME_DESIGN.md
   lore.md
   src/
-    main.ts                  # boot, loop, wires systems together
+    main.ts                  # browser side: canvas, input, loop, drawing; owns one Game
+    game.ts                  # the simulation for one run: world, time, player, enemies, spawning
     core/
       loop.ts                # fixed-timestep loop, accumulator cap, auto-pause
       input.ts               # keyboard + mouse state, preventDefault, resume consumption
@@ -723,6 +726,7 @@ necrogrid/
       navigation.ts          # smoothed field following, direct steering, separation
       spatialHash.ts         # neighbor queries
       noSpawnGrid.ts         # per-tile no-spawn counters from building radii
+      buildingGrid.ts        # which tiles buildings occupy
     time/
       dayCycle.ts
     director/
@@ -758,6 +762,7 @@ necrogrid/
       settings.ts
     debug/
       debugPanel.ts
+      overlays.ts            # flow field and spawn map overlays
     render/
       canvas.ts
       camera.ts
@@ -766,7 +771,7 @@ necrogrid/
     data/
       tuning.ts
       enemies.ts             # roster, spawn weights, elite values
-      buildings.ts
+      buildings.ts           # building roster, Phylactery, no-spawn radii
       recipes.ts
       spells.ts              # Bolt, Chain, Mend
       spawn.ts

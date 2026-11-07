@@ -13,6 +13,8 @@ export interface Player {
   prevY: number;
   /** Aim direction in radians (0 = east, +π/2 = south). */
   facing: number;
+  hp: number;
+  maxHp: number;
 }
 
 export interface MoveIntent {
@@ -34,7 +36,7 @@ export interface PlayerTerrain {
 export function createPlayer(tileX: number, tileY: number): Player {
   const x = tileX + 0.5;
   const y = tileY + 0.5;
-  return { x, y, prevX: x, prevY: y, facing: -Math.PI / 2 };
+  return { x, y, prevX: x, prevY: y, facing: -Math.PI / 2, hp: PLAYER.maxHp, maxHp: PLAYER.maxHp };
 }
 
 /**

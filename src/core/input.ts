@@ -18,11 +18,11 @@ export class Input {
   readonly mouse: Point = { x: 0, y: 0 };
 
   /**
-   * Called on every fresh key or button press. Return true to consume the press:
-   * it is then ignored until released. Used to resume from auto-pause without the
-   * resume input also casting, moving, or triggering a hotkey.
+   * Called on every fresh key or button press with the key code or mouse button. Return true
+   * to consume the press: it is then ignored until released. Used to resume from auto-pause
+   * without the resume input also casting, moving, or triggering a hotkey.
    */
-  interceptPress: () => boolean = () => false;
+  interceptPress: (press: { key?: string; button?: number }) => boolean = () => false;
 
   private readonly keysHeld = new Set<string>();
   private readonly keysPressed = new Set<string>();
@@ -35,7 +35,7 @@ export class Input {
     // A repeat for a key we do not think is held is left over from before a blur.
     // It is not a fresh press, so it neither resumes the game nor counts as input.
     if (repeat || this.keysHeld.has(code) || this.keysConsumed.has(code)) return;
-    if (this.interceptPress()) {
+    if (this.interceptPress({ key: code })) {
       this.keysConsumed.add(code);
       return;
     }
@@ -50,7 +50,7 @@ export class Input {
 
   mouseDown(button: number): void {
     if (this.buttonsHeld.has(button) || this.buttonsConsumed.has(button)) return;
-    if (this.interceptPress()) {
+    if (this.interceptPress({ button })) {
       this.buttonsConsumed.add(button);
       return;
     }

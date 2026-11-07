@@ -16,12 +16,13 @@ export function chunkCoord(tile: number): number {
   return Math.floor(tile / CHUNK_SIZE);
 }
 
-function key(chunkX: number, chunkY: number): string {
-  return `${chunkX},${chunkY}`;
+/** Numeric key so lookups never allocate (getTile runs tens of thousands of times per tick). */
+function key(chunkX: number, chunkY: number): number {
+  return (chunkX + 0x8000) * 0x10000 + (chunkY + 0x8000);
 }
 
 export class ChunkMap {
-  private readonly chunks = new Map<string, Chunk>();
+  private readonly chunks = new Map<number, Chunk>();
 
   constructor(readonly seed: number) {}
 
