@@ -52,6 +52,7 @@ const keys = {
   menuConfirm: new Set(keysForAction(CONTROLS, 'menuConfirm')),
 };
 const boltButtons = buttonsForAction(CONTROLS, 'bolt');
+const chainButtons = buttonsForAction(CONTROLS, 'chain');
 
 const debugPanel = debugEnabled
   ? new DebugPanel({
@@ -194,6 +195,7 @@ function tick(dt: number): void {
     },
     aim: camera.screenToWorld(input.mouse.x, input.mouse.y),
     bolt: boltButtons.some((b) => input.isButtonDown(b)),
+    chain: chainButtons.some((b) => input.wasButtonPressed(b)),
   });
   effects.advance(dt);
   input.endTick();

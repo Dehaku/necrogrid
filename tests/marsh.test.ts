@@ -4,7 +4,7 @@ import { TILE } from '../src/data/terrain';
 import { Game, type PlayerCommand } from '../src/game';
 
 const DT = 1 / 60;
-const idle: PlayerCommand = { move: { up: false, down: false, left: false, right: false }, aim: { x: 0, y: 0 }, bolt: false };
+const idle: PlayerCommand = { move: { up: false, down: false, left: false, right: false }, aim: { x: 0, y: 0 }, bolt: false, chain: false };
 
 function quietGame(): Game {
   const game = new Game(1, new EventBus<GameEvents>());

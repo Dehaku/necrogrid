@@ -50,5 +50,7 @@ export interface GameEvents {
   'enemy:died': { id: number; type: EnemyId; elite: boolean; x: number; y: number };
   /** A melee enemy landed a hit; drives the swipe visual. `size` is the enemy's draw size. */
   'enemy:attacked': { x: number; y: number; angle: number; size: number; elite: boolean };
+  /** Chain was cast. `points` runs from the necromancer through each enemy hit, in order. */
+  'chain:cast': { points: { x: number; y: number }[] };
   'run:lost': { cause: 'player' | 'phylactery'; day: number; kills: number; corpsesHarvested: number; score: number };
 }

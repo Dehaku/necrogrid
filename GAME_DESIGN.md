@@ -281,7 +281,8 @@ The controls live as data in `src/data/controls.ts`. Input handling, the build h
 - On hit, the chain jumps to up to `maxJumps = 3` other enemies within `jumpRange = 4 tiles`, each jump picking the nearest unhit enemy.
 - Damage 18 on the first hit, multiplied by `0.75` on each jump (18 → 13.5 → 10.1 → 7.6).
 - Mana cost 15. Cooldown 1.0 s.
-- Visual: a jagged line between each link, fading over 0.2 s.
+- Casts once per right-click (not on hold). If no enemy is within 6 tiles of the cursor, nothing happens and no mana is spent.
+- Visual: a jagged line from the necromancer through each link, fading over 0.2 s. Drawn over the night lighting, so it reads in the dark. The jaggedness uses a visual-only RNG, separate from the simulation.
 
 Neither spell can hit a Wraith that is still fading in.
 

@@ -12,7 +12,7 @@ function quietGame(seed = 1): { game: Game; events: EventBus<GameEvents> } {
   // Move away from the Phylactery so it never draws enemies or blocks shots.
   game.player.x = game.player.prevX = 12.5;
   game.player.y = game.player.prevY = 12.5;
-  for (let i = 0; i < 3; i++) game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false });
+  for (let i = 0; i < 3; i++) game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false, chain: false });
   return { game, events };
 }
 
@@ -22,7 +22,7 @@ describe('Bolt combat', () => {
     const died: string[] = [];
     events.on('enemy:died', (e) => died.push(e.type));
     const shambler = game.spawnEnemy('shambler', game.player.x + 6, game.player.y, false);
-    const shoot: PlayerCommand = { move: still, aim: { x: shambler.x, y: shambler.y }, bolt: true };
+    const shoot: PlayerCommand = { move: still, aim: { x: shambler.x, y: shambler.y }, bolt: true, chain: false };
     for (let i = 0; i < 90 && shambler.alive; i++) {
       shoot.aim = { x: shambler.x, y: shambler.y };
       game.tick(DT, shoot);
@@ -39,7 +39,7 @@ describe('Bolt combat', () => {
     events.on('enemy:damaged', () => hits++);
     const shambler = game.spawnEnemy('shambler', game.player.x + 4, game.player.y, false);
     for (let i = 0; i < 120 && shambler.alive; i++) {
-      game.tick(DT, { move: still, aim: { x: shambler.x, y: shambler.y }, bolt: true });
+      game.tick(DT, { move: still, aim: { x: shambler.x, y: shambler.y }, bolt: true, chain: false });
     }
     expect(hits).toBe(3);
   });
@@ -48,7 +48,7 @@ describe('Bolt combat', () => {
 describe('player damage and death', () => {
   it('ignores further hits for 0.5 s after taking one', () => {
     const { game } = quietGame();
-    const idle: PlayerCommand = { move: still, aim: { x: 0, y: 0 }, bolt: false };
+    const idle: PlayerCommand = { move: still, aim: { x: 0, y: 0 }, bolt: false, chain: false };
     // Two brutes in range at once: 18 damage each, but only one lands inside the window.
     game.spawnEnemy('brute', game.player.x + 1.5, game.player.y, false);
     game.spawnEnemy('brute', game.player.x - 1.5, game.player.y, false);
@@ -64,12 +64,12 @@ describe('player damage and death', () => {
     events.on('run:lost', (o) => lost.push(o.cause));
     game.player.hp = 5;
     game.spawnEnemy('brute', game.player.x + 1.5, game.player.y, false);
-    game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false });
+    game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false, chain: false });
     expect(game.player.hp).toBe(0);
     expect(game.outcome?.cause).toBe('player');
     expect(lost).toEqual(['player']);
     const elapsed = game.cycle.elapsed;
-    game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false });
+    game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false, chain: false });
     expect(game.cycle.elapsed).toBe(elapsed);
   });
 
@@ -77,7 +77,7 @@ describe('player damage and death', () => {
     const { game } = quietGame();
     game.phylactery.hp = 1;
     game.spawnEnemy('imp', 3.5, 0.5, false);
-    for (let i = 0; i < 120; i++) game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false });
+    for (let i = 0; i < 120; i++) game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false, chain: false });
     expect(game.phylactery.hp).toBe(0);
     expect(game.outcome).toBeUndefined();
   });
@@ -87,7 +87,7 @@ describe('player damage and death', () => {
     game.phylacteryLossEnabled = true;
     game.phylactery.hp = 1;
     game.spawnEnemy('imp', 3.5, 0.5, false);
-    for (let i = 0; i < 120 && !game.outcome; i++) game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false });
+    for (let i = 0; i < 120 && !game.outcome; i++) game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false, chain: false });
     expect(game.outcome?.cause).toBe('phylactery');
   });
 
@@ -95,7 +95,7 @@ describe('player damage and death', () => {
     const { game } = quietGame();
     game.godMode = true;
     game.spawnEnemy('brute', game.player.x + 1.5, game.player.y, false);
-    for (let i = 0; i < 180; i++) game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false });
+    for (let i = 0; i < 180; i++) game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false, chain: false });
     expect(game.player.hp).toBe(100);
   });
 
@@ -104,7 +104,7 @@ describe('player damage and death', () => {
     const swipes: { angle: number; elite: boolean }[] = [];
     events.on('enemy:attacked', (e) => swipes.push(e));
     game.spawnEnemy('imp', game.player.x + 1.5, game.player.y, true);
-    game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false });
+    game.tick(DT, { move: still, aim: { x: 0, y: 0 }, bolt: false, chain: false });
     expect(swipes).toHaveLength(1);
     // The imp is east of the player, so it swipes west (angle ±π).
     expect(Math.abs(swipes[0]!.angle)).toBeCloseTo(Math.PI);

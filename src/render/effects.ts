@@ -1,12 +1,49 @@
-// Short-lived visual effects: enemy attack swipes (section 7) and floating damage numbers.
+// Short-lived visual effects: enemy attack swipes (section 7), Chain links (section 8.1), and
+// floating damage numbers.
 // They age with simulation time (advance() is called from the tick), so they freeze while
 // paused and speed up with the debug time scale. Purely visual: nothing here feeds back
 // into the simulation.
 
+import { CHAIN } from '../data/spells';
 import { TILE_SIZE } from '../data/tuning';
 import { DAMAGE_NUMBERS, SWIPE } from '../data/ui';
 import type { EventBus, GameEvents } from '../core/events';
+import type { Point } from '../core/input';
+import { Rng } from '../core/rng';
 import type { Camera } from './camera';
+
+interface ChainBolt {
+  /** Jagged world-space path through every link. */
+  path: Point[];
+  age: number;
+}
+
+/**
+ * A jagged path through `points`: each link is split into pieces of about `segmentLength`
+ * tiles, and the inner joints are pushed sideways by up to `jitter` tiles. The ends of each
+ * link stay on the necromancer and the enemies.
+ */
+export function jaggedPath(points: readonly Point[], rng: Rng, segmentLength: number = CHAIN.segmentLength, jitter: number = CHAIN.jitter): Point[] {
+  const path: Point[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy);
+    const pieces = Math.max(1, Math.round(length / segmentLength));
+    const nx = length > 0 ? -dy / length : 0;
+    const ny = length > 0 ? dx / length : 0;
+    if (i === 0) path.push({ ...a });
+    for (let p = 1; p < pieces; p++) {
+      const t = p / pieces;
+      const off = rng.range(-jitter, jitter);
+      path.push({ x: a.x + dx * t + nx * off, y: a.y + dy * t + ny * off });
+    }
+    path.push({ ...b });
+  }
+  return path;
+}
 
 interface Swipe {
   x: number;
@@ -63,6 +100,9 @@ export function swipeSlices(t: number): SwipeSlice[] {
 export class Effects {
   private swipes: Swipe[] = [];
   private numbers: DamageNumber[] = [];
+  private chains: ChainBolt[] = [];
+  /** Visual-only randomness (chain jaggedness). Separate from the simulation's RNG streams. */
+  private readonly visualRng = new Rng(0x7a11);
   private unsubscribe: (() => void)[] = [];
   /** Settings toggle (M6). */
   showDamageNumbers = true;
@@ -75,6 +115,7 @@ export class Effects {
       events.on('enemy:damaged', (e) =>
         this.numbers.push({ x: e.x, y: e.y - 0.4, text: String(Math.round(e.amount)), age: 0 }),
       ),
+      events.on('chain:cast', (e) => this.chains.push({ path: jaggedPath(e.points, this.visualRng), age: 0 })),
     ];
   }
 
@@ -83,13 +124,39 @@ export class Effects {
     this.unsubscribe = [];
     this.swipes = [];
     this.numbers = [];
+    this.chains = [];
   }
 
   advance(dt: number): void {
     for (const s of this.swipes) s.age += dt;
     for (const n of this.numbers) n.age += dt;
+    for (const c of this.chains) c.age += dt;
     this.swipes = this.swipes.filter((s) => s.age < SWIPE.duration);
     this.numbers = this.numbers.filter((n) => n.age < DAMAGE_NUMBERS.lifetime);
+    this.chains = this.chains.filter((c) => c.age < CHAIN.fade);
+  }
+
+  /** Chain links: a wide glow under a thin bright core, fading out. Drawn over the lighting, like magic. */
+  private drawChains(ctx: CanvasRenderingContext2D, camera: Camera): void {
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    for (const c of this.chains) {
+      const alpha = 1 - c.age / CHAIN.fade;
+      ctx.beginPath();
+      c.path.forEach((p, i) => {
+        const s = camera.worldToScreen(p.x, p.y);
+        if (i === 0) ctx.moveTo(s.x, s.y);
+        else ctx.lineTo(s.x, s.y);
+      });
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = CHAIN.glowColor;
+      ctx.lineWidth = 7;
+      ctx.stroke();
+      ctx.strokeStyle = CHAIN.coreColor;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** Swipes, drawn with the world (before lighting). */
@@ -113,8 +180,9 @@ export class Effects {
     ctx.globalAlpha = 1;
   }
 
-  /** Damage numbers, drawn over everything in the world (after lighting). */
+  /** Chain links and damage numbers, drawn over everything in the world (after lighting). */
   drawOverlay(ctx: CanvasRenderingContext2D, camera: Camera): void {
+    this.drawChains(ctx, camera);
     if (!this.showDamageNumbers) return;
     ctx.font = '700 13px system-ui, sans-serif';
     ctx.textAlign = 'center';

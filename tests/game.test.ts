@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EventBus, type GameEvents } from '../src/core/events';
 import { Game, type PlayerCommand } from '../src/game';
 
-const idle: PlayerCommand = { move: { up: false, down: false, left: false, right: false }, aim: { x: 0, y: 0 }, bolt: false };
+const idle: PlayerCommand = { move: { up: false, down: false, left: false, right: false }, aim: { x: 0, y: 0 }, bolt: false, chain: false };
 
 function quietGame(seed = 1): Game {
   const game = new Game(seed, new EventBus<GameEvents>());

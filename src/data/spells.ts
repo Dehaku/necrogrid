@@ -1,4 +1,25 @@
-// Spell values. Data only. GAME_DESIGN.md section 8.1. Chain (M5) and Mend (M6) join later.
+// Spell values. Data only. GAME_DESIGN.md section 8.1. Mend (M6) joins later.
+
+export const CHAIN = {
+  /** The first target is the nearest enemy within this many tiles of the cursor. */
+  castRadius: 6,
+  /** Further enemies the chain can jump to after the first hit. */
+  maxJumps: 3,
+  /** Each jump reaches the nearest unhit enemy within this many tiles of the last one hit. */
+  jumpRange: 4,
+  /** Damage on the first hit; each jump multiplies it by `falloff`. */
+  damage: 18,
+  falloff: 0.75,
+  manaCost: 15,
+  cooldown: 1.0,
+  /** Visual: seconds for the links to fade. */
+  fade: 0.2,
+  /** Visual: jagged segments of about this many tiles, offset up to `jitter` tiles sideways. */
+  segmentLength: 0.45,
+  jitter: 0.22,
+  coreColor: '#f1e9ff',
+  glowColor: 'rgba(170, 130, 255, 0.45)',
+} as const;
 
 export const BOLT = {
   /** Pixels per second. */

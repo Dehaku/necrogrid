@@ -10,6 +10,7 @@ import type { EventBus, GameEvents } from './core/events';
 import type { Point } from './core/input';
 import { hashInts, Rng } from './core/rng';
 import { stepBolt, tryCastBolt } from './combat/bolt';
+import { chainDamage, tryCastChain } from './combat/chain';
 import { chooseTarget } from './combat/targeting';
 import { SpawnDirector, type SpawnWorld } from './director/spawnDirector';
 import { createEnemy, type Enemy } from './entities/enemy';
@@ -42,6 +43,8 @@ export interface PlayerCommand {
   aim: Point;
   /** Bolt button held. */
   bolt: boolean;
+  /** Chain button pressed this tick. */
+  chain: boolean;
 }
 
 /** How a run ended (section 11). */
@@ -157,6 +160,7 @@ export class Game {
       const bolt = tryCastBolt(this.player, command.aim);
       if (bolt) this.projectiles.push(bolt);
     }
+    if (command.chain) this.castChain(command.aim);
     this.generateChunks();
 
     this.fields.trackPlayer(Math.floor(this.player.x), Math.floor(this.player.y));
@@ -307,6 +311,15 @@ export class Game {
       dt,
       ground ? this.groundBlocked : undefined,
     );
+  }
+
+  private castChain(cursor: Point): void {
+    const targets = tryCastChain(this.player, cursor, this.enemies.filter((e) => e.alive));
+    if (targets.length === 0) return;
+    // Record positions before damage, so the visual links the enemies where they were hit.
+    const points = [{ x: this.player.x, y: this.player.y }, ...targets.map((e) => ({ x: e.x, y: e.y }))];
+    targets.forEach((enemy, i) => this.damageEnemy(enemy, chainDamage(i)));
+    this.events.emit('chain:cast', { points });
   }
 
   private updateProjectiles(dt: number): void {

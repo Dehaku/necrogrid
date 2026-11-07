@@ -21,6 +21,8 @@ export interface Player {
   invulnerable: number;
   /** Seconds until Bolt can be cast again. */
   boltCooldown: number;
+  /** Seconds until Chain can be cast again. */
+  chainCooldown: number;
 }
 
 export interface MoveIntent {
@@ -54,6 +56,7 @@ export function createPlayer(tileX: number, tileY: number): Player {
     maxMana: PLAYER.maxMana,
     invulnerable: 0,
     boltCooldown: 0,
+    chainCooldown: 0,
   };
 }
 
@@ -73,6 +76,7 @@ export function updatePlayer(
   player.mana = Math.min(player.maxMana, player.mana + PLAYER.manaRegen * dt);
   player.invulnerable = Math.max(0, player.invulnerable - dt);
   player.boltCooldown = Math.max(0, player.boltCooldown - dt);
+  player.chainCooldown = Math.max(0, player.chainCooldown - dt);
 
   const dx = (move.right ? 1 : 0) - (move.left ? 1 : 0);
   const dy = (move.down ? 1 : 0) - (move.up ? 1 : 0);

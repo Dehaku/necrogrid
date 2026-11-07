@@ -1,7 +1,7 @@
 // HUD drawn in screen space after the world. GAME_DESIGN.md section 8.4.
 // M2: the day ring. M4: health and mana crescents, the spell bar (Bolt).
 
-import { BOLT } from '../data/spells';
+import { BOLT, CHAIN } from '../data/spells';
 import { DAY_CYCLE, DAY_RING } from '../data/time';
 import { TILE_SIZE, VIEW_WIDTH } from '../data/tuning';
 import { CRESCENT, SPELL_BAR } from '../data/ui';
@@ -71,7 +71,7 @@ export interface SpellIcon {
   draw: (ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) => void;
 }
 
-/** The spell icons for the current state. Chain joins in M5 and Mend in M6. */
+/** The spell icons for the current state: Bolt and Chain. Mend joins in M6. */
 export function spellIcons(player: Player): SpellIcon[] {
   return [
     {
@@ -83,6 +83,24 @@ export function spellIcons(player: Player): SpellIcon[] {
         ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
         ctx.fillStyle = BOLT.color;
         ctx.fill();
+      },
+    },
+    {
+      label: 'RMB',
+      cooldownFraction: player.chainCooldown / CHAIN.cooldown,
+      usable: player.mana >= CHAIN.manaCost,
+      draw: (ctx, cx, cy, size) => {
+        // Zigzag.
+        const w = size * 0.32;
+        ctx.beginPath();
+        ctx.moveTo(cx - w, cy - w);
+        ctx.lineTo(cx - w * 0.2, cy - w * 0.1);
+        ctx.lineTo(cx + w * 0.1, cy - w * 0.55);
+        ctx.lineTo(cx + w, cy + w);
+        ctx.strokeStyle = CHAIN.coreColor;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'miter';
+        ctx.stroke();
       },
     },
   ];
