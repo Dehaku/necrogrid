@@ -26,6 +26,7 @@ import type { ResourceId } from './data/resources';
 import { corpseOpacity, corpsesToDraw } from './entities/corpse';
 import { EndScreen } from './ui/endScreen';
 import { EquipmentScreen } from './ui/equipmentScreen';
+import { CraftMenu } from './ui/craftMenu';
 import { drawHealthBar } from './ui/healthBars';
 import { drawCrescents, drawDayRing, drawHarvestPrompt, drawSpellBar, spellIcons } from './ui/hud';
 import type { MenuPress } from './ui/menuWidgets';
@@ -70,6 +71,7 @@ applySettings(settingsPanel.settings);
 const titleScreen = new TitleScreen(settingsPanel);
 const endScreen = new EndScreen();
 const equipmentScreen = new EquipmentScreen();
+const craftMenu = new CraftMenu();
 const buildMode = new BuildMode();
 /** Run time of the last hit on the Phylactery, for the arrow's red flash. */
 let lastPhylacteryHit = -Infinity;
@@ -91,6 +93,7 @@ const keys = {
   menuRight: new Set(keysForAction(CONTROLS, 'menuRight')),
   menuConfirm: new Set(keysForAction(CONTROLS, 'menuConfirm')),
   equipment: new Set(keysForAction(CONTROLS, 'equipment')),
+  craft: new Set(keysForAction(CONTROLS, 'craft')),
   harvest: keysForAction(CONTROLS, 'harvest'),
   mend: keysForAction(CONTROLS, 'mend'),
   repair: keysForAction(CONTROLS, 'repair'),
@@ -108,6 +111,7 @@ const debugPanel = debugEnabled
       seed: () => game?.seed,
       restartWithSeed: (seed) => startRun(seed),
       grant: (id, amount) => game?.gain({ [id]: amount }),
+      unlockAllGear: () => game?.unlockAllGear(),
       entityCounts: () =>
         game ? { chunks: game.map.chunkCount, enemies: game.enemies.length, bolts: game.projectiles.length, ...game.enemyCounts() } : {},
       extraReadout: () =>
@@ -128,7 +132,7 @@ function runActive(): boolean {
 }
 
 function menusOpen(): boolean {
-  return titleScreen.isOpen || endScreen.isOpen || equipmentScreen.isOpen;
+  return titleScreen.isOpen || endScreen.isOpen || equipmentScreen.isOpen || craftMenu.isOpen;
 }
 
 function startRun(seed: number = newRunSeed(location.search)): void {
@@ -137,6 +141,7 @@ function startRun(seed: number = newRunSeed(location.search)): void {
   effects.attach(events);
   resourceHud.attach(events);
   equipmentScreen.close();
+  craftMenu.close();
   buildMode.active = false;
   lastPhylacteryHit = -Infinity;
   events.on('phylactery:damaged', () => (lastPhylacteryHit = game?.cycle.elapsed ?? 0));
@@ -159,6 +164,7 @@ function openTitle(): void {
   effects.detach();
   endScreen.close();
   equipmentScreen.close();
+  craftMenu.close();
   titleScreen.open('title', performance.now());
   pause.pause('menu');
 }
@@ -204,11 +210,26 @@ input.interceptPress = (press) => {
     return true;
   }
   if (equipmentScreen.isOpen) {
-    // Tab or Esc closes it; everything else is swallowed while it is open.
-    if (press.key !== undefined && (keys.equipment.has(press.key) || keys.pause.has(press.key))) {
+    // Tab or Esc closes it; menu keys and clicks pick gear; everything else is swallowed.
+    const menuPress = toMenuPress(press);
+    const action =
+      press.key !== undefined && keys.equipment.has(press.key) ? 'close' : menuPress && game ? equipmentScreen.handle(menuPress, game.gear) : undefined;
+    if (action === 'close') {
       equipmentScreen.close();
+  craftMenu.close();
       pause.resume('menu');
-    }
+    } else if (action && 'equip' in action) game?.equip(action.equip);
+    else if (action && 'unequip' in action) game?.unequip(action.unequip);
+    return true;
+  }
+  if (craftMenu.isOpen) {
+    // C or Esc closes it; Enter or a click crafts the chosen recipe.
+    const menuPress = toMenuPress(press);
+    const action = press.key !== undefined && keys.craft.has(press.key) ? 'close' : menuPress ? craftMenu.handle(menuPress) : undefined;
+    if (action === 'close') {
+      craftMenu.close();
+      pause.resume('menu');
+    } else if (action) game?.craft(action.craft);
     return true;
   }
   // The press that resumes from auto-pause is consumed, so it does nothing else.
@@ -234,6 +255,12 @@ input.interceptPress = (press) => {
   }
   if (press.key !== undefined && keys.equipment.has(press.key) && runActive()) {
     equipmentScreen.open();
+    pause.pause('menu');
+    input.clearAll();
+    return true;
+  }
+  if (press.key !== undefined && keys.craft.has(press.key) && runActive()) {
+    craftMenu.open();
     pause.pause('menu');
     input.clearAll();
     return true;
@@ -403,18 +430,23 @@ function drawRun(run: Game): void {
   }
   effects.drawOverlay(ctx, camera);
   drawCrescents(ctx, me.x, me.y, player);
-  drawSpellBar(ctx, me.x, me.y, spellIcons(player, run.resources.get('flesh')));
+  drawSpellBar(ctx, me.x, me.y, spellIcons(player, run.resources.get('flesh'), run.stats));
   drawDayRing(ctx, run.cycle.state);
   drawPhylacteryPanel(ctx, run.phylactery.hp, run.phylactery.maxHp);
   const arrow = edgeArrowPosition(camera.worldToScreen(run.phylactery.center.x, run.phylactery.center.y));
   if (arrow) drawEdgeArrow(ctx, arrow, time - lastPhylacteryHit < 2, performance.now());
   if (buildMode.active) drawHotbar(ctx, buildMode, (cost) => run.resources.canAfford(cost));
   const amount = (id: ResourceId) => run.resources.get(id);
-  resourceHud.draw(ctx, amount, equipmentScreen.isOpen || run.nearAltar());
+  resourceHud.draw(ctx, amount, equipmentScreen.isOpen || craftMenu.isOpen || run.nearAltar());
   if (settings?.spawnOverlay) drawSpawnInset(ctx, run);
   if (equipmentScreen.isOpen) {
-    equipmentScreen.draw(ctx, amount);
-    resourceHud.draw(ctx, amount, true);
+    equipmentScreen.hover(input.mouse, run.gear);
+    equipmentScreen.draw(ctx, amount, run.gear, run.stats);
+  }
+  if (craftMenu.isOpen) {
+    craftMenu.hover(input.mouse);
+    const atAltar = run.atAltar();
+    craftMenu.draw(ctx, { problem: (id) => run.craftProblem(id), unlocked: (id) => run.gear.isUnlocked(id), atAltar });
   }
 }
 

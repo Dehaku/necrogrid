@@ -3,6 +3,7 @@
 
 import type { BuildingKind } from '../data/buildings';
 import type { CorpseSize, EnemyId } from '../data/enemies';
+import type { GearId, GearSlot } from '../data/recipes';
 import type { ResourceAmounts, ResourceId } from '../data/resources';
 import type { TileId } from '../data/terrain';
 import type { PauseReason } from './loop';
@@ -66,6 +67,9 @@ export interface GameEvents {
   /** Demons destroyed a building; `drop` is what was actually added. */
   'building:destroyed': { id: number; kind: BuildingKind; x: number; y: number; drop: ResourceAmounts };
   'building:repaired': { amount: number };
+  'gear:crafted': { id: GearId };
+  /** `id` undefined means the slot was emptied. */
+  'gear:equipped': { slot: GearSlot; id: GearId | undefined };
   /** Chain was cast. `points` runs from the necromancer through each enemy hit, in order. */
   'chain:cast': { points: { x: number; y: number }[] };
   'run:lost': { cause: 'player' | 'phylactery'; day: number; kills: number; corpsesHarvested: number; score: number };

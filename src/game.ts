@@ -6,6 +6,11 @@ import { nearestWithin, totemBolt } from './combat/totem';
 import { createBuilding, footprintCenter, placementProblem, shareOf, type Building, type PlacementWorld } from './entities/building';
 import { planStartingBase } from './entities/startingBase';
 import { stepRepair, type Repairable } from './economy/repair';
+import { CRAFTING, GEAR, type GearId, type GearSlot } from './data/recipes';
+import { gearDef } from './crafting/unlocks';
+import { baseStats, computeStats, type Stats } from './core/stats';
+import { craftProblem } from './crafting/crafting';
+import { GearState } from './crafting/unlocks';
 import { type EnemyId } from './data/enemies';
 import { SPAWN } from './data/spawn';
 import { CHUNK_GENERATION_RADIUS, CHUNK_SIZE, TILE } from './data/terrain';
@@ -102,6 +107,10 @@ export class Game {
   readonly enemyHash = new SpatialHash<Enemy>(NAV.hashCellSize);
   readonly projectiles: Projectile[] = [];
   readonly resources = new Resources();
+  /** Unlocked and equipped gear (section 10.3). */
+  readonly gear = new GearState();
+  /** The player's stats with equipped gear applied. */
+  stats: Stats = baseStats();
   /** In creation order (oldest first). */
   readonly corpses: Corpse[] = [];
   harvest: HarvestState | undefined;
@@ -330,6 +339,65 @@ export class Game {
     }
   }
 
+  /** True while the player stands at an Altar: their edge within 0.5 tile of its footprint (section 10.1). */
+  atAltar(): boolean {
+    for (const b of this.buildingsById.values()) {
+      if (b.kind !== 'altar') continue;
+      if (distanceToFootprint(this.player.x, this.player.y, b.footprint) - PLAYER.radius <= CRAFTING.altarReach + 1e-6) return true;
+    }
+    return false;
+  }
+
+  /** Why an item cannot be crafted right now, or undefined. */
+  craftProblem(id: GearId): string | undefined {
+    return craftProblem(id, this.gear, (cost) => this.resources.canAfford(cost), this.atAltar());
+  }
+
+  /**
+   * Crafts an item: pays its recipe once and unlocks it for the rest of the run. If its slot is
+   * empty it is equipped right away. Returns the reason it could not be crafted, or undefined.
+   */
+  craft(id: GearId): string | undefined {
+    const problem = this.craftProblem(id);
+    if (problem) return problem;
+    this.spend(gearDef(id).recipe);
+    this.gear.unlock(id);
+    this.events.emit('gear:crafted', { id });
+    if (!this.gear.equipped[gearDef(id).slot]) this.equip(id);
+    return undefined;
+  }
+
+  /** Equips an unlocked item (free, any time). Returns false if it is not unlocked. */
+  equip(id: GearId): boolean {
+    if (!this.gear.equip(id)) return false;
+    this.refreshStats();
+    this.events.emit('gear:equipped', { slot: gearDef(id).slot, id });
+    return true;
+  }
+
+  unequip(slot: GearSlot): void {
+    this.gear.unequip(slot);
+    this.refreshStats();
+    this.events.emit('gear:equipped', { slot, id: undefined });
+  }
+
+  /** Debug: unlock every item. */
+  unlockAllGear(): void {
+    for (const g of GEAR) this.gear.unlock(g.id);
+  }
+
+  /**
+   * Recomputes stats from equipped gear. A higher max keeps current HP/mana as they are; a lower
+   * max clamps them (section 10.3).
+   */
+  private refreshStats(): void {
+    this.stats = computeStats(baseStats(), this.gear.modifiers());
+    this.player.maxHp = this.stats.maxHp;
+    this.player.maxMana = this.stats.maxMana;
+    this.player.hp = Math.min(this.player.hp, this.player.maxHp);
+    this.player.mana = Math.min(this.player.mana, this.player.maxMana);
+  }
+
   /** Night light sources besides the player: Grave Lanterns. */
   lanterns(): Point[] {
     const out: Point[] = [];
@@ -404,11 +472,11 @@ export class Game {
   tick(dt: number, command: PlayerCommand): void {
     if (this.outcome) return;
     this.cycle.advance(dt);
-    updatePlayer(this.player, command.move, command.aim, dt, this.playerTerrain);
+    updatePlayer(this.player, command.move, command.aim, dt, this.playerTerrain, this.stats.manaRegen);
     if (this.nearAltar()) this.player.mana = Math.min(this.player.maxMana, this.player.mana + ALTAR.manaRegenAura * dt);
     this.updateRepair(dt, command.repair ?? false);
     if (command.bolt) {
-      const bolt = tryCastBolt(this.player, command.aim);
+      const bolt = tryCastBolt(this.player, command.aim, this.stats);
       if (bolt) this.projectiles.push(bolt);
     }
     if (command.chain) this.castChain(command.aim);
@@ -646,11 +714,11 @@ export class Game {
   }
 
   private castChain(cursor: Point): void {
-    const targets = tryCastChain(this.player, cursor, this.enemies.filter((e) => e.alive));
+    const targets = tryCastChain(this.player, cursor, this.enemies.filter((e) => e.alive), this.stats);
     if (targets.length === 0) return;
     // Record positions before damage, so the visual links the enemies where they were hit.
     const points = [{ x: this.player.x, y: this.player.y }, ...targets.map((e) => ({ x: e.x, y: e.y }))];
-    targets.forEach((enemy, i) => this.damageEnemy(enemy, chainDamage(i)));
+    targets.forEach((enemy, i) => this.damageEnemy(enemy, chainDamage(i, this.stats.chainDamage)));
     this.events.emit('chain:cast', { points });
   }
 

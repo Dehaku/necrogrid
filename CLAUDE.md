@@ -10,7 +10,8 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 
 ## Current status
 
-- Milestone: **M7 done** (build mode with ghost and hotbar, six buildings plus Marsh/Fill, Bone Door, Totem, Collector, Altar aura, Lantern light, repair, removal, destruction drops, starting base, Phylactery panel and arrow). Next: M8. Update this line when a milestone is finished.
+- Milestone: **M8 done** (stat modifiers, ten gear recipes, unlocks, C crafting menu with Altar check, Tab equipment slots, debug Unlock all gear). Next: M9. Update this line when a milestone is finished.
+- Player combat numbers come from `Game.stats` (base stats + equipped gear). Pass `stats` into Bolt, Chain, mana regen, and the spell bar; never read `BOLT.damage` etc. directly for gameplay.
 - `new Game(seed, events, { startingBase: false })` skips the free walls and Totem; use it in tests that need open ground around the Phylactery.
 - Resources change only through `Game.gain` / `Game.spend`, which emit `resources:changed` (the HUD counters depend on it).
 - `PHYLACTERY.destructionEndsRun` is `false` on purpose until M9 (see GAME_DESIGN.md section 11).

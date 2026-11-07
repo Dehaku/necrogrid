@@ -78,10 +78,12 @@ export function updatePlayer(
   aim: Point,
   dt: number,
   terrain: PlayerTerrain,
+  /** Mana per second, from stats (gear). */
+  manaRegen: number = PLAYER.manaRegen,
 ): void {
   player.prevX = player.x;
   player.prevY = player.y;
-  player.mana = Math.min(player.maxMana, player.mana + PLAYER.manaRegen * dt);
+  player.mana = Math.min(player.maxMana, player.mana + manaRegen * dt);
   player.invulnerable = Math.max(0, player.invulnerable - dt);
   player.boltCooldown = Math.max(0, player.boltCooldown - dt);
   player.chainCooldown = Math.max(0, player.chainCooldown - dt);

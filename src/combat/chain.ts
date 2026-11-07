@@ -4,6 +4,7 @@
 import { CHAIN } from '../data/spells';
 import type { Point } from '../core/input';
 import type { Player } from '../entities/player';
+import { baseStats, type Stats } from '../core/stats';
 
 export interface ChainOptions {
   castRadius: number;
@@ -56,11 +57,11 @@ export function chainDamage(index: number, damage: number = CHAIN.damage, fallof
  * Casts Chain toward `cursor` if cooldown and mana allow and an enemy is in reach.
  * Spends mana and starts the cooldown only when something is hit. Returns the targets.
  */
-export function tryCastChain<T extends Point>(player: Player, cursor: Point, enemies: readonly T[]): T[] {
+export function tryCastChain<T extends Point>(player: Player, cursor: Point, enemies: readonly T[], stats: Stats = baseStats()): T[] {
   if (player.chainCooldown > 0 || player.mana < CHAIN.manaCost) return [];
-  const targets = chainTargets(cursor, enemies);
+  const targets = chainTargets(cursor, enemies, { castRadius: CHAIN.castRadius, maxJumps: stats.chainMaxJumps, jumpRange: CHAIN.jumpRange });
   if (targets.length === 0) return [];
   player.mana -= CHAIN.manaCost;
-  player.chainCooldown = CHAIN.cooldown;
+  player.chainCooldown = stats.chainCooldown;
   return targets;
 }

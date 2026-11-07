@@ -3,6 +3,7 @@
 
 import { BOLT, CHAIN, MEND } from '../data/spells';
 import { mendProblem } from '../entities/player';
+import { baseStats, type Stats } from '../core/stats';
 import { healthBarColor } from './healthBars';
 import { DAY_CYCLE, DAY_RING } from '../data/time';
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
@@ -74,12 +75,12 @@ export interface SpellIcon {
 }
 
 /** The spell icons for the current state: Bolt, Chain, and the Mend badge with the Flesh count. */
-export function spellIcons(player: Player, flesh: number): SpellIcon[] {
+export function spellIcons(player: Player, flesh: number, stats: Stats = baseStats()): SpellIcon[] {
   return [
     {
       label: 'LMB',
-      cooldownFraction: player.boltCooldown / BOLT.cooldown,
-      usable: player.mana >= BOLT.manaCost,
+      cooldownFraction: player.boltCooldown / stats.boltCooldown,
+      usable: player.mana >= stats.boltManaCost,
       draw: (ctx, cx, cy, size) => {
         ctx.beginPath();
         ctx.arc(cx, cy, size * 0.22, 0, Math.PI * 2);
@@ -89,7 +90,7 @@ export function spellIcons(player: Player, flesh: number): SpellIcon[] {
     },
     {
       label: 'RMB',
-      cooldownFraction: player.chainCooldown / CHAIN.cooldown,
+      cooldownFraction: player.chainCooldown / stats.chainCooldown,
       usable: player.mana >= CHAIN.manaCost,
       draw: (ctx, cx, cy, size) => {
         // Zigzag.

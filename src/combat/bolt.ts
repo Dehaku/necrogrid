@@ -6,12 +6,13 @@
 import { BOLT } from '../data/spells';
 import { TILE_SIZE } from '../data/tuning';
 import type { Point } from '../core/input';
+import { baseStats, type Stats } from '../core/stats';
 import type { Player } from '../entities/player';
 import type { Projectile } from '../entities/projectile';
 
-/** Casts a bolt toward `aim` if cooldown and mana allow. Returns it, or undefined. */
-export function tryCastBolt(player: Player, aim: Point): Projectile | undefined {
-  if (player.boltCooldown > 0 || player.mana < BOLT.manaCost) return undefined;
+/** Casts a bolt toward `aim` if cooldown and mana allow. Damage, cooldown, and cost come from `stats` (gear). */
+export function tryCastBolt(player: Player, aim: Point, stats: Stats = baseStats()): Projectile | undefined {
+  if (player.boltCooldown > 0 || player.mana < stats.boltManaCost) return undefined;
   let dx = aim.x - player.x;
   let dy = aim.y - player.y;
   let length = Math.hypot(dx, dy);
@@ -22,8 +23,8 @@ export function tryCastBolt(player: Player, aim: Point): Projectile | undefined 
   }
   dx /= length;
   dy /= length;
-  player.mana -= BOLT.manaCost;
-  player.boltCooldown = BOLT.cooldown;
+  player.mana -= stats.boltManaCost;
+  player.boltCooldown = stats.boltCooldown;
   const speed = BOLT.speed / TILE_SIZE;
   const x = player.x + dx * BOLT.spawnOffset;
   const y = player.y + dy * BOLT.spawnOffset;
@@ -35,7 +36,7 @@ export function tryCastBolt(player: Player, aim: Point): Projectile | undefined 
     vx: dx * speed,
     vy: dy * speed,
     life: BOLT.lifetime,
-    damage: BOLT.damage,
+    damage: stats.boltDamage,
     radius: BOLT.radius,
     alive: true,
   };

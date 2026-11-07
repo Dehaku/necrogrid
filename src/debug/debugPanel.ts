@@ -37,6 +37,8 @@ export interface DebugHooks {
   restartWithSeed(seed: number): void;
   /** Add resources to the current run. */
   grant(id: ResourceId, amount: number): void;
+  /** Unlock every gear item. */
+  unlockAllGear(): void;
   /** Counts by entity type, for the stats readout. */
   entityCounts(): Record<string, number>;
   /** Extra readout lines (HP, spawn budget, ...). */
@@ -118,6 +120,8 @@ export class DebugPanel {
         <button data-grant>+50</button>
         <button data-grant-all>+50 all</button>
       </div>
+      <div class="label">Gear</div>
+      <div class="row"><button data-unlock-gear>Unlock all gear</button></div>
       <div class="label">Spawning</div>
       <div class="row"><label><input data-spawn-paused type="checkbox" /> Pause spawning</label></div>
       <div class="row">
@@ -158,6 +162,7 @@ export class DebugPanel {
     this.bindCheckbox('[data-god]', (on) => (this.settings.godMode = on));
     const grantType = this.query<HTMLSelectElement>('[data-grant-type]');
     this.query('[data-grant]').addEventListener('click', () => hooks.grant(grantType.value as ResourceId, 50));
+    this.query('[data-unlock-gear]').addEventListener('click', () => hooks.unlockAllGear());
     this.query('[data-grant-all]').addEventListener('click', () => {
       for (const id of RESOURCE_ORDER) hooks.grant(id, 50);
     });

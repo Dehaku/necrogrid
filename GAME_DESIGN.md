@@ -453,8 +453,9 @@ The loot table lives in `src/data/loot.ts`, keyed by corpse size. Elite corpses 
 
 ### 10.1 Crafting Stations
 
-- Gear marked "needs Altar" can only be crafted while the player is within **0.5 tile of an Altar's footprint**. The player collides with the Altar, so in practice this means standing against it.
-- The C menu lists every recipe. Recipes the player cannot craft right now (not enough resources, or not at an Altar) are shown greyed out with the reason.
+- Gear marked "needs Altar" (⌂ in the menu) can only be crafted while the player's edge is within **0.5 tile of an Altar's footprint** (their center within 1 tile). The player collides with the Altar, so in practice this means standing against it.
+- The C menu (pauses the game) lists every recipe with its cost and effects. Recipes the player cannot craft right now are greyed out with the reason: Already unlocked, Needs an Altar, or Not enough resources. Up/Down and Enter, or a click, craft; C or Esc closes. All four resource counters show while it is open.
+- A crafted item is equipped right away if its slot is empty.
 - Buildings are placed in build mode. Their costs are paid in resources.
 
 ### 10.2 Buildings (v1 roster)
@@ -513,6 +514,10 @@ There are three slots: **Weapon**, **Robe**, and **Charm**. Each slot has a prog
 | **Mana Phial** | Charm | 6 Flesh, 4 Ichor | Max Mana +50, Mana regen +2 |
 | **Chain Focus** | Charm | 10 Ichor, 3 Soul Shard (needs Altar) | Chain max jumps +1, Chain cooldown −0.2 s |
 | **Heart of Ash** | Charm | 12 Ichor, 5 Soul Shard (needs Altar) | Mana regen +6, Bolt damage ×1.2 |
+
+**Equipment screen (Tab):** three columns (Weapon, Robe, Charm), each listing "(none)" and every unlocked item for that slot, with the equipped one ticked. Up/Down move, Left/Right jump between columns, Enter or a click equips (or empties the slot with "(none)"). A stats summary at the bottom shows the result. Swapping is free and instant.
+
+**Ichor budget:** crafting all ten items needs 57 Ichor in total, more than the 50 cap, so Ichor has to be spent as it comes in rather than banked.
 
 **Modifiable stats:** `maxHp`, `maxMana`, `manaRegen`, `boltDamage`, `boltCooldown`, `boltManaCost`, `chainDamage`, `chainMaxJumps`, `chainCooldown`.
 
@@ -748,11 +753,11 @@ necrogrid/
     main.ts                  # browser side: canvas, input, loop, drawing; owns one Game
     game.ts                  # the simulation for one run: world, time, player, enemies, spawning
     core/
+      stats.ts               # base stats and modifier math (add, then mul)
       loop.ts                # fixed-timestep loop, accumulator cap, auto-pause
       input.ts               # keyboard + mouse state, preventDefault, resume consumption
       events.ts              # typed event bus
       rng.ts                 # seeded RNG
-      stats.ts               # stat modifiers
     world/
       tiles.ts               # tile types
       mapGen.ts              # chunk generation logic from (seed, chunkX, chunkY)
@@ -813,7 +818,7 @@ necrogrid/
       tuning.ts
       enemies.ts             # roster, spawn weights, elite values
       buildings.ts           # building roster, Phylactery, no-spawn radii
-      recipes.ts
+      recipes.ts             # gear recipes, slots, modifiers, stat labels
       spells.ts              # Bolt, Chain, Mend
       spawn.ts
       loot.ts                # loot table, elite loot, harvest times
