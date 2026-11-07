@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.11. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.12. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -24,6 +24,7 @@
 | 0.9 | Spell bar: Bolt and Chain icons beside the Mend badge. Title screen with grave-rising letters, reused as the pause screen (Resume on top while a run is active), with a New Game confirmation and a controls panel (section 8.5). Health bars on damaged enemies and buildings, green / yellow / red by thirds. Numbers confirmed as starting values for playtesting. |
 | 0.10 | Spawning rewritten: no pathing, off screen, at least 3 tiles from buildings, around the player or the Phylactery (section 6). Wraiths use the same rules. Chunk generation radius raised to 2 × view. Respawn defined: no-build zone around the Phylactery, 3 s delay with camera pan, 30 HP Phylactery cost, 3 s invulnerability, cooldowns reset (section 10.4). |
 | 0.11 | No-spawn grid: each building blocks spawns within its `noSpawnRadius` (3 tiles, Bone Totem 5), kept as a counter grid updated on place and remove (section 6). |
+| 0.12 | Enemy attack swipes: a short crescent swipe toward what a melee enemy hits, red (orange for elites), built in M4 (section 7). |
 
 ---
 
@@ -207,6 +208,13 @@ All enemies are defined as data in `src/data/enemies.ts`. Adding an enemy means 
 - A Wraith stops moving while its target is within 6 tiles, and fires a shot every 2.5 s.
 - Shots travel at **3 tiles/s (96 px/s)** in a straight line and expire after 2.5 s. They are slow enough to dodge.
 - A shot hits the player, or is blocked by the first building it touches and damages it. A Wraith may hover outside a wall and chip at it. This is intended: Wraiths are an annoyance that costs repairs, not a main threat.
+
+**Attack visuals (swipe):**
+- Each time a melee enemy lands a hit (on the player or a building), a red swipe appears in front of it, aimed at what it hit.
+- The swipe is a crescent arc centered 0.6 × the enemy's draw size + 0.3 tile in front of its center, spanning 100°, with an outer radius of 0.5 tile × (draw size / 0.4), so Brutes swing wider than Imps.
+- It sweeps across its 100° from one side to the other over 0.18 s while fading from 90% to 0% opacity. Color `#ff3b3b`; elites use `#ffb03b` so their hits stand out.
+- Purely visual: the simulation emits `enemy:attacked` (`x`, `y`, `angle`, `size`, `elite`) and the renderer keeps a short list of active swipes. Swipes age with simulation time, so they freeze while paused and speed up with the debug time scale.
+- Wraith shots (M9) get a small purple flash at the Wraith instead.
 
 **Pathfinding:** Ground enemies follow flow fields with smoothed movement. Wraiths steer directly. Section 15.1 has the details.
 
@@ -602,6 +610,7 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 - Bolt projectile, mana cost, cooldown, enemy HP, damage numbers, death.
 - Player HP, invulnerability frames, death screen.
 - HUD: health and mana crescents, the Bolt icon of the spell bar, and enemy health bars (section 8.4).
+- Enemy attack swipes (section 7).
 - Title and pause screen with the grave-rising title, Resume / New Game / Settings (Settings can be a stub until M6), the New Game confirmation, and the controls and seed panels (section 8.5).
 - **Done when:** the page opens on the animated title screen, New Game starts a run with a fresh seed, the player can kill enemies with bolts, damaged enemies show bars that turn yellow and then red, the player dies when HP reaches 0, and after death the title screen shows no Resume. During a run, Esc shows Resume on top, and New Game asks for confirmation.
 
@@ -875,6 +884,9 @@ Record every balance change here so intent is not lost.
 
 **Confirmed (v0.11):**
 34. **No-spawn grid:** each building blocks spawns within its `noSpawnRadius`: 3 tiles by default, 5 for the Bone Totem (section 6).
+
+**Confirmed (v0.12):**
+35. **Enemy attack swipes:** a short red crescent swipe toward whatever a melee enemy hits; orange for elites (section 7, built in M4).
 
 **Open:** none right now.
 
