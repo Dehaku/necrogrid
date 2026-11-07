@@ -32,4 +32,6 @@ export class EventBus<Events extends object> {
 export interface GameEvents {
   'game:paused': { reason: PauseReason };
   'game:resumed': { reason: PauseReason };
+  /** A chunk was generated. Flow fields listen for this from M3. */
+  'chunk:generated': { chunkX: number; chunkY: number };
 }

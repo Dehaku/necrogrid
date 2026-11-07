@@ -10,7 +10,7 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 
 ## Current status
 
-- Milestone: **M0 done** (skeleton: loop, input, auto-pause, letterboxed canvas). Next: M1. Update this line when a milestone is finished.
+- Milestone: **M1 done** (procedural chunks, rock collision, marsh slow). Next: M2. Update this line when a milestone is finished.
 
 ## Commands
 
@@ -34,5 +34,5 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 ## Workflow
 
 - Run `npm test` and `npm run build` before calling a milestone done.
-- Check the milestone in the browser with `?debug` and the debug panel (GAME_DESIGN.md section 13). With `?debug`, `window.necrogrid` exposes internals for console checks.
+- Check the milestone in the browser with `?debug` and the debug panel (GAME_DESIGN.md section 13). With `?debug`, `window.necrogrid` exposes internals for console checks. Add `&seed=N` for a fixed map.
 - Commit at the end of each milestone.

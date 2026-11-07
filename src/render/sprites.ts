@@ -1,24 +1,38 @@
 // Placeholder shapes (GAME_DESIGN.md section 15, placeholder art rule).
 
+import { TILE_PROPS, UNGENERATED_COLOR, type TileId } from '../data/terrain';
 import { TILE_SIZE, VIEW_HEIGHT, VIEW_WIDTH } from '../data/tuning';
 import type { Camera } from './camera';
 
-const GROUND_COLOR = '#1b1a1f';
-const GRID_COLOR = '#26252c';
-const ORIGIN_COLOR = '#2e2638';
+const GRID_COLOR = 'rgba(255, 255, 255, 0.035)';
+const ORIGIN_COLOR = 'rgba(155, 127, 209, 0.12)';
 const PLAYER_COLOR = '#9b7fd1';
 const PLAYER_FACING_COLOR = '#e4d8ff';
 
-/** Flat ground with faint tile lines, so camera movement is visible. */
-export function drawGround(ctx: CanvasRenderingContext2D, camera: Camera): void {
-  ctx.fillStyle = GROUND_COLOR;
-  ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+/** Anything that can say which tile is where (undefined = not generated). */
+export interface TileSource {
+  getTile(tileX: number, tileY: number): TileId | undefined;
+}
 
+/** Visible tiles, faint tile lines, and a marker where the Phylactery will stand. */
+export function drawTerrain(ctx: CanvasRenderingContext2D, camera: Camera, tiles: TileSource): void {
   const topLeft = camera.screenToWorld(0, 0);
   const minX = Math.floor(topLeft.x);
   const minY = Math.floor(topLeft.y);
   const maxX = Math.ceil(topLeft.x + VIEW_WIDTH / TILE_SIZE);
   const maxY = Math.ceil(topLeft.y + VIEW_HEIGHT / TILE_SIZE);
+
+  for (let ty = minY; ty <= maxY; ty++) {
+    for (let tx = minX; tx <= maxX; tx++) {
+      const tile = tiles.getTile(tx, ty);
+      const p = camera.worldToScreen(tx, ty);
+      ctx.fillStyle = tile === undefined ? UNGENERATED_COLOR : TILE_PROPS[tile].color;
+      // Rounded edges with 1 px overlap so no seams show between tiles at fractional scales.
+      const x = Math.floor(p.x);
+      const y = Math.floor(p.y);
+      ctx.fillRect(x, y, TILE_SIZE + 1, TILE_SIZE + 1);
+    }
+  }
 
   // Mark the 3 × 3 area where the Phylactery will stand (tiles -1..1).
   const origin = camera.worldToScreen(-1, -1);

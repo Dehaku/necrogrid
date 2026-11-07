@@ -82,7 +82,9 @@ You are a necromancer holding back waves of demons in a procedurally generated w
 
 **Generation rules:**
 - No `rock` or `marsh` within 6 tiles of the Phylactery's center, so the starting base always fits.
-- Rock is kept rare and in small clusters so it rarely seals off areas. Spawning does not check paths, so an enemy can spawn in a sealed rock pocket. Such an enemy is removed (section 15.1).
+- Rock is kept rare and in small clusters. Clusters are 4-connected, never touch another cluster (not even diagonally), and stay 1 tile inside their chunk so clusters in neighboring chunks cannot touch either. A cluster of at most 4 tiles cannot enclose a tile, so rock never seals off an area. The stuck-enemy rule (section 15.1) stays as a safety net.
+- Each feature's tile count per chunk is its coverage × a random factor between 0.5 and 1.5, so chunks vary while the average matches. Placement order: rock, then marsh, then dirt on what is still grass. Values live in `src/data/terrain.ts`.
+- `?seed=N` in the URL starts the run with that seed, for testing and bug reports.
 
 **Placement rules:**
 - Buildings snap to the grid.

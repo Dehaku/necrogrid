@@ -8,6 +8,9 @@ export const TILE_SIZE = 32;
 export const VIEW_WIDTH = 1280;
 export const VIEW_HEIGHT = 720;
 
+/** Tiles from the player to a corner of the view. "Beyond view" distances are multiples of this. */
+export const VIEW_RADIUS = 23;
+
 /** Simulation ticks per second (fixed timestep). */
 export const TICK_RATE = 60;
 
