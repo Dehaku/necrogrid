@@ -26,6 +26,40 @@ interface DamageNumber {
 
 const DEG = Math.PI / 180;
 
+export interface SwipeSlice {
+  /** Angles relative to the swipe's aim direction, in radians; from < to. */
+  from: number;
+  to: number;
+  opacity: number;
+}
+
+/**
+ * The swipe at progress t (0–1) as slices of arc. The bright leading edge sweeps forward
+ * across the span (clockwise) during the first `headTravel` of the duration; behind it a
+ * trail fades to nothing over `trailSpan` degrees. Once the edge reaches the far side, the
+ * whole swipe fades out.
+ */
+export function swipeSlices(t: number): SwipeSlice[] {
+  const half = (SWIPE.span / 2) * DEG;
+  const head = -half + SWIPE.span * DEG * Math.min(1, t / SWIPE.headTravel);
+  const tail = Math.max(-half, head - SWIPE.trailSpan * DEG);
+  const fadeOut = t <= SWIPE.headTravel ? 1 : Math.max(0, 1 - (t - SWIPE.headTravel) / (1 - SWIPE.headTravel));
+  const slices: SwipeSlice[] = [];
+  const n = SWIPE.trailSlices;
+  const width = (head - tail) / n;
+  if (width <= 0) return slices;
+  for (let i = 0; i < n; i++) {
+    // i = n − 1 is the slice at the leading edge (brightest).
+    const brightness = (i + 1) / n;
+    slices.push({
+      from: tail + width * i,
+      to: tail + width * (i + 1),
+      opacity: SWIPE.startOpacity * brightness * fadeOut,
+    });
+  }
+  return slices;
+}
+
 export class Effects {
   private swipes: Swipe[] = [];
   private numbers: DamageNumber[] = [];
@@ -66,16 +100,15 @@ export class Effects {
       const center = camera.worldToScreen(s.x + Math.cos(s.angle) * offset, s.y + Math.sin(s.angle) * offset);
       const outer = SWIPE.radiusBase * (s.size / SWIPE.radiusSizeRef) * TILE_SIZE;
       const inner = outer * SWIPE.innerRatio;
-      // The visible band grows from one side of the span to the other as the swipe plays.
-      const start = s.angle - (SWIPE.span / 2) * DEG;
-      const end = start + SWIPE.span * DEG * Math.min(1, t * 1.6);
-      ctx.globalAlpha = SWIPE.startOpacity * (1 - t);
       ctx.fillStyle = s.elite ? SWIPE.eliteColor : SWIPE.color;
-      ctx.beginPath();
-      ctx.arc(center.x, center.y, outer, start, end);
-      ctx.arc(center.x, center.y, inner, end, start, true);
-      ctx.closePath();
-      ctx.fill();
+      for (const slice of swipeSlices(t)) {
+        ctx.globalAlpha = slice.opacity;
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, outer, s.angle + slice.from, s.angle + slice.to);
+        ctx.arc(center.x, center.y, inner, s.angle + slice.to, s.angle + slice.from, true);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
     ctx.globalAlpha = 1;
   }

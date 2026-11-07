@@ -56,7 +56,14 @@ export const SWIPE = {
   radiusSizeRef: 0.4,
   /** Inner edge as a fraction of the outer radius. */
   innerRatio: 0.62,
+  /** Opacity of the bright leading edge. */
   startOpacity: 0.9,
+  /** Degrees of fading trail behind the leading edge. */
+  trailSpan: 60,
+  /** Fraction of the duration the leading edge takes to cross the span; the trail fades out after. */
+  headTravel: 0.65,
+  /** Slices used to draw the trail's fade. */
+  trailSlices: 10,
   color: '#ff3b3b',
   eliteColor: '#ffb03b',
 } as const;

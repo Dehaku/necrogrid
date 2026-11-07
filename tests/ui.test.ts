@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CONTROLS } from '../src/data/controls';
+import { swipeSlices } from '../src/render/effects';
 import { EndScreen } from '../src/ui/endScreen';
 import { healthBarColor } from '../src/ui/healthBars';
 import { crescentArcs } from '../src/ui/hud';
@@ -25,6 +26,31 @@ describe('crescents', () => {
     expect(manaHalf.fill.start).toBeCloseTo(75 * DEG);
     expect(manaHalf.fill.end).toBeCloseTo(0);
     expect(crescentArcs('health', 0).fill.end).toBeCloseTo(105 * DEG);
+  });
+});
+
+describe('attack swipe', () => {
+  const head = (t: number) => Math.max(...swipeSlices(t).map((s) => s.to));
+  const brightest = (t: number) => swipeSlices(t).reduce((a, b) => (b.opacity > a.opacity ? b : a));
+
+  it('sweeps its bright leading edge forward across the 100° span', () => {
+    expect(head(0.1)).toBeLessThan(head(0.3));
+    expect(head(0.3)).toBeLessThan(head(0.6));
+    expect(head(0.65)).toBeCloseTo(50 * DEG);
+  });
+
+  it('keeps the brightest slice at the front and fades the trail behind it', () => {
+    for (const t of [0.2, 0.4, 0.6]) {
+      const slices = swipeSlices(t);
+      expect(brightest(t).to).toBeCloseTo(head(t));
+      for (let i = 1; i < slices.length; i++) expect(slices[i]!.opacity).toBeGreaterThan(slices[i - 1]!.opacity);
+    }
+  });
+
+  it('fades out entirely after the edge reaches the far side', () => {
+    expect(brightest(0.65).opacity).toBeCloseTo(0.9);
+    expect(brightest(0.85).opacity).toBeLessThan(0.5);
+    expect(brightest(1).opacity).toBeCloseTo(0);
   });
 });
 

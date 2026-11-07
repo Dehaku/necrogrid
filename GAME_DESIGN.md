@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.12. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.13. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -25,6 +25,7 @@
 | 0.10 | Spawning rewritten: no pathing, off screen, at least 3 tiles from buildings, around the player or the Phylactery (section 6). Wraiths use the same rules. Chunk generation radius raised to 2 × view. Respawn defined: no-build zone around the Phylactery, 3 s delay with camera pan, 30 HP Phylactery cost, 3 s invulnerability, cooldowns reset (section 10.4). |
 | 0.11 | No-spawn grid: each building blocks spawns within its `noSpawnRadius` (3 tiles, Bone Totem 5), kept as a counter grid updated on place and remove (section 6). |
 | 0.12 | Enemy attack swipes: a short crescent swipe toward what a melee enemy hits, red (orange for elites), built in M4 (section 7). |
+| 0.13 | Swipe reworked: the bright edge leads and the fade trails behind. Player-made Marsh (10 Flesh, 1 Ichor) added to the build list, with open questions (decision 36). |
 
 ---
 
@@ -212,7 +213,7 @@ All enemies are defined as data in `src/data/enemies.ts`. Adding an enemy means 
 **Attack visuals (swipe):**
 - Each time a melee enemy lands a hit (on the player or a building), a red swipe appears in front of it, aimed at what it hit.
 - The swipe is a crescent arc centered 0.6 × the enemy's draw size + 0.3 tile in front of its center, spanning 100°, with an outer radius of 0.5 tile × (draw size / 0.4), so Brutes swing wider than Imps.
-- It sweeps across its 100° from one side to the other over 0.18 s while fading from 90% to 0% opacity. Color `#ff3b3b`; elites use `#ffb03b` so their hits stand out.
+- A bright leading edge (90% opacity) sweeps forward across the 100° (clockwise) in the first 65% of the 0.18 s, with a 60° trail behind it that fades to nothing. Once the edge reaches the far side, the whole swipe fades out. Color `#ff3b3b`; elites use `#ffb03b` so their hits stand out.
 - Purely visual: the simulation emits `enemy:attacked` (`x`, `y`, `angle`, `size`, `elite`) and the renderer keeps a short list of active swipes. Swipes age with simulation time, so they freeze while paused and speed up with the debug time scale.
 - Wraith shots (M9) get a small purple flash at the Wraith instead.
 
@@ -459,6 +460,7 @@ The loot table lives in `src/data/loot.ts`, keyed by corpse size. Elite corpses 
 | 4 | **Corpse Collector** | 1×1 | 8 Bone, 2 Flesh | 80 | Instantly harvests the nearest corpse within 3 tiles, then waits a random 3–5 s cooldown (section 10.2.1) |
 | 5 | **Altar** | 2×2 | 10 Flesh, 10 Ichor | 150 | Crafting station. +4 mana regen aura, radius 5 tiles |
 | 6 | **Grave Lantern** | 1×1 | 3 Bone, 2 Flesh | 40 | Light radius +3 tiles at night. Draws Wraith targeting (decoy, `aggroWeight = 2`) |
+| 7 | **Marsh** | 1×1 | 10 Flesh, 1 Ichor | — | Not a building: turns a grass or dirt tile into `marsh` permanently. See the open question in section 18 (decision 36) |
 
 Totems never target a Wraith that is still fading in.
 
@@ -633,6 +635,7 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 - Player collision with buildings, with the Bone Door exception.
 - Pre-place the Phylactery and the starting base (section 10.5).
 - All six buildings, including the Corpse Collector's random cooldown and the Totem's nearest-enemy targeting.
+- The Marsh tile (key 7), once decision 36 is settled.
 - Buildings take damage, show health bars while damaged, can be destroyed, can be repaired with the scaled cost, and can be removed for a 50% refund. Player and Totem bolts pass over player buildings.
 - **Done when:** all six buildings place and function as described in section 10.2, the player walks through doors but enemies cannot, every seed gives a different starting wall pattern with at least one gap and exactly one Totem (unit test), and repair cost matches the formula (unit test).
 
@@ -895,7 +898,11 @@ Record every balance change here so intent is not lost.
 **Confirmed (v0.12):**
 35. **Enemy attack swipes:** a short red crescent swipe toward whatever a melee enemy hits; orange for elites (section 7, built in M4).
 
-**Open:** none right now.
+**Open:**
+36. **Player-made marsh (section 10.2, key 7):** 10 Flesh + 1 Ichor turns a grass or dirt tile into marsh. Still to decide before M7:
+    - **What it is for.** Marsh currently slows only the player, and demons ignore it, so as written it would only hurt the player. Options: make all marsh (or only player-made marsh) slow demons, for example by 50%; or keep it as a cosmetic or terrain-shaping tool.
+    - **Whether it can be removed** (and refunded), or is permanent.
+    - **Placement rules:** whether it may go in the no-build zone, and whether it gets a hotbar slot (7) like the buildings.
 
 ## 19. Glossary
 
