@@ -99,6 +99,17 @@ export const CORPSES = {
   eliteOutline: '#c9a227',
 } as const;
 
+/** Pause screen row of enemy types slain this run (below the buttons). */
+export const KILL_GALLERY = {
+  /** Top of the row, in logical pixels. */
+  top: 530,
+  slotWidth: 92,
+  slotHeight: 84,
+  /** Icon center and count baseline, from the top of a slot. */
+  iconY: 30,
+  countY: 68,
+} as const;
+
 /** Local best score (M10). */
 export const BEST_SCORE = {
   storageKey: 'necrogrid.best',

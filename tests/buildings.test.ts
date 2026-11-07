@@ -23,7 +23,7 @@ function openGame(seed = 5): { game: Game; events: EventBus<GameEvents> } {
   game.player.x = game.player.prevX = 15.5;
   game.player.y = game.player.prevY = 15.5;
   ticks(game, 3 * DT);
-  game.gain({ bone: 200, flesh: 200, ichor: 50, soulShard: 50 });
+  game.gain({ bone: 200, flesh: 200, soulShard: 50, ichor: 50 });
   return { game, events };
 }
 
@@ -105,7 +105,7 @@ describe('repair cost', () => {
   it('is ceil(cost × missing / max) per resource', () => {
     expect(repairCostToFull(at(75, 150), { bone: 4 })).toEqual({ bone: 2 });
     expect(repairCostToFull(at(74, 150), { bone: 4 })).toEqual({ bone: 3 });
-    expect(repairCostToFull(at(40, 80), { bone: 10, ichor: 5 })).toEqual({ bone: 5, ichor: 3 });
+    expect(repairCostToFull(at(40, 80), { bone: 10, soulShard: 5 })).toEqual({ bone: 5, soulShard: 3 });
     expect(repairCostToFull(at(150, 150), { bone: 4 })).toEqual({});
   });
 
@@ -151,7 +151,7 @@ describe('placing and removing', () => {
     const { game } = openGame();
     const totem = game.placeBuilding('totem', 20, 20);
     expect(typeof totem).toBe('object');
-    expect(game.resources.snapshot()).toMatchObject({ bone: 190, ichor: 45 });
+    expect(game.resources.snapshot()).toMatchObject({ bone: 190, soulShard: 45 });
     expect(game.buildings.has(20, 20)).toBe(true);
     expect(game.noSpawn.isBlocked(25, 25)).toBe(true);
     expect(game.noSpawn.isBlocked(26, 20)).toBe(false);

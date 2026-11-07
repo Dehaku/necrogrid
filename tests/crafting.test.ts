@@ -21,7 +21,7 @@ function richGame(withAltar = true): { game: Game; events: EventBus<GameEvents> 
   game.player.x = game.player.prevX = 20.5;
   game.player.y = game.player.prevY = 20.5;
   for (let i = 0; i < 3; i++) game.tick(DT, cmd());
-  game.gain({ bone: 200, flesh: 200, ichor: 50, soulShard: 50 });
+  game.gain({ bone: 200, flesh: 200, soulShard: 50, ichor: 50 });
   // Altar's footprint (21..22, 20..21): the player at x = 20.5 touches its west edge.
   if (withAltar) game.placeBuilding('altar', 21, 20);
   return { game, events };
@@ -59,9 +59,9 @@ describe('crafting', () => {
   it('crafts all ten items once each, then swaps freely between them', () => {
     const { game } = richGame();
     expect(game.atAltar()).toBe(true);
-    // The full set needs 57 Ichor, more than the 50 cap, so top up between crafts (as play would).
+    // The full set needs 57 Soul Shards, more than the 50 cap, so top up between crafts (as play would).
     for (const g of GEAR) {
-      game.gain({ bone: 50, flesh: 50, ichor: 50, soulShard: 50 });
+      game.gain({ bone: 50, flesh: 50, soulShard: 50, ichor: 50 });
       expect(game.craft(g.id)).toBeUndefined();
     }
     expect(game.gear.unlocked.size).toBe(10);
@@ -81,7 +81,7 @@ describe('crafting', () => {
     const { game } = richGame();
     const before = game.resources.snapshot();
     game.craft('graveVestments');
-    expect(game.resources.snapshot()).toEqual({ ...before, bone: before.bone - 6, flesh: before.flesh - 8, ichor: before.ichor - 4 });
+    expect(game.resources.snapshot()).toEqual({ ...before, bone: before.bone - 6, flesh: before.flesh - 8, soulShard: before.soulShard - 4 });
   });
 
   it('needs an Altar for Altar recipes, but not for the basic ones', () => {

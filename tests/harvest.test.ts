@@ -32,7 +32,7 @@ describe('corpses and harvesting', () => {
     const { game } = quietGame();
     const corpse = corpseNextToPlayer(game, 'brute');
     expect(corpse.size).toBe('large');
-    expect(corpse.loot.soulShard).toBe(1);
+    expect(corpse.loot.ichor).toBe(1);
     expect(game.corpses).toHaveLength(1);
   });
 
@@ -51,12 +51,12 @@ describe('corpses and harvesting', () => {
     expect(popups).toEqual([corpse.loot]);
   });
 
-  it('gives an elite corpse 4× loot plus a Soul Shard', () => {
+  it('gives an elite corpse 4× loot plus 1 Soul Shard', () => {
     const { game } = quietGame();
     const corpse = corpseNextToPlayer(game, 'imp', true);
     expect([4, 8]).toContain(corpse.loot.bone);
     ticks(game, 0.7, cmd({ harvest: true }));
-    expect(game.resources.get('soulShard')).toBe(1);
+    expect([1, 5]).toContain(game.resources.get('soulShard'));
   });
 
   it('is interrupted by taking damage', () => {

@@ -31,7 +31,7 @@ export function choiceInfo(choice: BuildChoice): ChoiceInfo {
   return { name: def.name, cost: def.cost, w: def.w, h: def.h, color: def.color, description: def.description, range };
 }
 
-/** "10 Bone, 5 Ichor" */
+/** "10 Bone, 5 Soul Shard" */
 export function costText(cost: ResourceAmounts): string {
   return RESOURCE_ORDER.filter((id) => (cost[id] ?? 0) > 0)
     .map((id) => `${cost[id]} ${RESOURCES[id].name}`)

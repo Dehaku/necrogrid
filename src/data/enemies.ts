@@ -43,6 +43,8 @@ export interface EnemyDef {
   readonly wiggle?: { readonly strength: number; readonly speed: number };
   /** Seconds to fade in after spawning; meanwhile it cannot move, attack, or be hit. */
   readonly fadeIn?: number;
+  /** Banner text on the day it first spawns (minDay above 1), after "Day N.". */
+  readonly arrival?: string;
 }
 
 /** Melee range in tiles, center to center (section 7). */
@@ -65,7 +67,7 @@ export const ENEMIES: Readonly<Record<EnemyId, EnemyDef>> = {
   brute: {
     id: 'brute', name: 'Brute', hp: 90, speed: 30, damage: 18, attackInterval: 2.0, attack: 'melee',
     range: MELEE_RANGE, radius: 0.5, drawSize: 0.6, spawnWeightDay: 8, spawnWeightNight: 20, minDay: 3,
-    movement: 'ground', corpseSize: 'large', color: '#5a3a33', shape: 'square', buildingDamageMultiplier: 2,
+    movement: 'ground', corpseSize: 'large', color: '#5a3a33', shape: 'square', buildingDamageMultiplier: 2, arrival: 'Brutes have entered the battlefield',
     navigation: 'field',
   },
   wraith: {
@@ -77,7 +79,7 @@ export const ENEMIES: Readonly<Record<EnemyId, EnemyDef>> = {
   hellhound: {
     id: 'hellhound', name: 'Hellhound', hp: 35, speed: 120, damage: 10, attackInterval: 1.0, attack: 'melee',
     range: MELEE_RANGE, radius: 0.5, drawSize: 0.4, spawnWeightDay: 6, spawnWeightNight: 0, minDay: 5,
-    movement: 'ground', corpseSize: 'medium', color: '#e0782a', shape: 'hexagon', buildingDamageMultiplier: 1,
+    movement: 'ground', corpseSize: 'medium', color: '#e0782a', shape: 'hexagon', buildingDamageMultiplier: 1, arrival: 'Hellhounds have awoken',
     navigation: 'field',
   },
 };

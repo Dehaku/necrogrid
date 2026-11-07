@@ -7,7 +7,7 @@ import type { Rng } from '../core/rng';
 
 /**
  * Rolls once per resource: a uniform integer range, or a chance of getting 1. Elite corpses
- * multiply every rolled amount, then add bonus Soul Shards whatever the size.
+ * multiply every rolled amount, then add the elite bonus (1 Soul Shard) whatever the size.
  */
 export function rollLoot(size: CorpseSize, elite: boolean, rng: Rng): ResourceAmounts {
   const table = LOOT[size];
@@ -20,7 +20,10 @@ export function rollLoot(size: CorpseSize, elite: boolean, rng: Rng): ResourceAm
   }
   if (elite) {
     for (const id of RESOURCE_ORDER) if (loot[id]) loot[id] = loot[id]! * ELITE_LOOT.multiplier;
-    loot.soulShard = (loot.soulShard ?? 0) + ELITE_LOOT.bonusSoulShards;
+    for (const id of RESOURCE_ORDER) {
+      const bonus = ELITE_LOOT.bonus[id] ?? 0;
+      if (bonus > 0) loot[id] = (loot[id] ?? 0) + bonus;
+    }
   }
   return loot;
 }

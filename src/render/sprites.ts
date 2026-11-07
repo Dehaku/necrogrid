@@ -1,5 +1,6 @@
 // Placeholder shapes (GAME_DESIGN.md section 15, placeholder art rule).
 
+import { PHYLACTERY_PULSE } from '../data/fx';
 import { PHYLACTERY, type BuildingKind } from '../data/buildings';
 import { ELITE, ENEMY_SHOT, type EnemyDef } from '../data/enemies';
 import { BOLT } from '../data/spells';
@@ -63,21 +64,65 @@ export function drawTerrain(ctx: CanvasRenderingContext2D, camera: Camera, tiles
 }
 
 /** Phylactery placeholder: a 3 × 3 block with a bright edge and a label. */
-export function drawPhylactery(ctx: CanvasRenderingContext2D, camera: Camera, fp: Footprint): void {
+/**
+ * The Phylactery's pulse (0–1) at a run time. 0 (still) before the final day starts at
+ * `startAt`. Through the countdown the rate rises linearly from `startHz` to `endHz` at
+ * `completeAt`; the phase is the integral of that rate, so it speeds up smoothly with no
+ * jumps. After completion it pulses calmly at `boundHz`.
+ */
+export function phylacteryPulse(elapsed: number, startAt: number, completeAt: number, completed: boolean): number {
+  const { startHz, endHz, boundHz } = PHYLACTERY_PULSE;
+  let cycles: number;
+  if (completed) cycles = elapsed * boundHz;
+  else {
+    if (elapsed <= startAt) return 0;
+    const span = completeAt - startAt;
+    const t = Math.min(elapsed - startAt, span);
+    cycles = startHz * t + ((endHz - startHz) * t * t) / (2 * span);
+  }
+  return (1 - Math.cos(cycles * Math.PI * 2)) / 2;
+}
+
+/** The Phylactery with its soft pulsing glow (`pulse` 0–1). */
+export function drawPhylactery(ctx: CanvasRenderingContext2D, camera: Camera, fp: Footprint, pulse = 0): void {
+  const p = camera.worldToScreen(fp.x, fp.y);
+  const w = fp.w * TILE_SIZE;
+  const h = fp.h * TILE_SIZE;
+  if (p.x > VIEW_WIDTH + 40 || p.y > VIEW_HEIGHT + 40 || p.x + w < -40 || p.y + h < -40) return;
+  ctx.save();
+  ctx.shadowColor = `rgba(${PHYLACTERY_PULSE.glowRgb}, ${0.35 + 0.5 * pulse})`;
+  ctx.shadowBlur = PHYLACTERY_PULSE.haloMin + (PHYLACTERY_PULSE.haloMax - PHYLACTERY_PULSE.haloMin) * pulse;
+  ctx.fillStyle = PHYLACTERY.color;
+  ctx.fillRect(p.x, p.y, w, h);
+  ctx.restore();
+  ctx.fillStyle = `rgba(${PHYLACTERY_PULSE.glowRgb}, ${PHYLACTERY_PULSE.glowMax * pulse})`;
+  ctx.fillRect(p.x + 3, p.y + 3, w - 6, h - 6);
+  ctx.strokeStyle = PHYLACTERY.edgeColor;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(p.x + 1, p.y + 1, w - 2, h - 2);
+}
+
+/**
+ * The Phylactery's label, and on the final day its completion countdown, drawn on the
+ * building after the night darkness so it stays readable.
+ */
+export function drawPhylacteryLabel(ctx: CanvasRenderingContext2D, camera: Camera, fp: Footprint, countdown?: string): void {
   const p = camera.worldToScreen(fp.x, fp.y);
   const w = fp.w * TILE_SIZE;
   const h = fp.h * TILE_SIZE;
   if (p.x > VIEW_WIDTH || p.y > VIEW_HEIGHT || p.x + w < 0 || p.y + h < 0) return;
-  ctx.fillStyle = PHYLACTERY.color;
-  ctx.fillRect(p.x, p.y, w, h);
-  ctx.strokeStyle = PHYLACTERY.edgeColor;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(p.x + 1, p.y + 1, w - 2, h - 2);
-  ctx.fillStyle = PHYLACTERY.edgeColor;
-  ctx.font = '600 11px system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('PHYLACTERY', p.x + w / 2, p.y + h / 2);
+  ctx.fillStyle = PHYLACTERY.edgeColor;
+  ctx.font = '600 11px system-ui, sans-serif';
+  ctx.fillText('PHYLACTERY', p.x + w / 2, countdown ? p.y + 18 : p.y + h / 2);
+  if (!countdown) return;
+  ctx.font = "700 26px Georgia, 'Times New Roman', serif";
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.strokeText(countdown, p.x + w / 2, p.y + h / 2 + 8);
+  ctx.fillStyle = PHYLACTERY_PULSE.timerColor;
+  ctx.fillText(countdown, p.x + w / 2, p.y + h / 2 + 8);
 }
 
 /** Mixes two #rrggbb colors; t = 0 gives a, t = 1 gives b. */

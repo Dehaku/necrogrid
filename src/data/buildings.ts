@@ -41,7 +41,7 @@ export const BUILDINGS: Readonly<Record<BuildingKind, BuildingDef>> = {
     description: 'A wall you can walk through. Enemies cannot.',
   },
   totem: {
-    kind: 'totem', name: 'Bone Totem', w: 1, h: 1, cost: { bone: 10, ichor: 5 }, hp: 80,
+    kind: 'totem', name: 'Bone Totem', w: 1, h: 1, cost: { bone: 10, soulShard: 5 }, hp: 80,
     noSpawnRadius: 5, playerPassable: false, color: '#7b5ea7', label: 'T',
     description: 'Shoots the nearest enemy within 6 tiles.',
   },
@@ -51,7 +51,7 @@ export const BUILDINGS: Readonly<Record<BuildingKind, BuildingDef>> = {
     description: 'Harvests corpses within 3 tiles for you.',
   },
   altar: {
-    kind: 'altar', name: 'Altar', w: 2, h: 2, cost: { flesh: 10, ichor: 10 }, hp: 150,
+    kind: 'altar', name: 'Altar', w: 2, h: 2, cost: { flesh: 10, soulShard: 10 }, hp: 150,
     noSpawnRadius: DEFAULT_NO_SPAWN_RADIUS, playerPassable: false, color: '#8a3b4b', label: 'ALTAR',
     description: 'Crafting. +4 mana regen nearby. +50 to every resource cap.',
   },

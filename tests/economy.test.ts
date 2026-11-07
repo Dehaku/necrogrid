@@ -15,36 +15,37 @@ const values = (rolls: ResourceAmounts[], id: keyof ResourceAmounts) => rolls.ma
 const share = (rolls: ResourceAmounts[], id: keyof ResourceAmounts) => values(rolls, id).filter((v) => v > 0).length / rolls.length;
 
 describe('loot table', () => {
-  it('small: 1–2 Bone, no Flesh, 15% Ichor, no Soul Shard', () => {
+  it('small: 1–2 Bone, no Flesh, 15% Soul Shard, no Ichor', () => {
     const rolls = rollMany('small', false);
     expect(new Set(values(rolls, 'bone'))).toEqual(new Set([1, 2]));
     expect(share(rolls, 'flesh')).toBe(0);
-    expect(share(rolls, 'ichor')).toBeGreaterThan(0.12);
-    expect(share(rolls, 'ichor')).toBeLessThan(0.18);
-    expect(share(rolls, 'soulShard')).toBe(0);
+    expect(share(rolls, 'soulShard')).toBeGreaterThan(0.12);
+    expect(share(rolls, 'soulShard')).toBeLessThan(0.18);
+    expect(share(rolls, 'ichor')).toBe(0);
   });
 
-  it('medium: 2–3 Bone, 50% Flesh, 30% Ichor', () => {
+  it('medium: 2–3 Bone, 50% Flesh, 30% Soul Shard', () => {
     const rolls = rollMany('medium', false);
     expect(new Set(values(rolls, 'bone'))).toEqual(new Set([2, 3]));
     expect(share(rolls, 'flesh')).toBeGreaterThan(0.46);
     expect(share(rolls, 'flesh')).toBeLessThan(0.54);
-    expect(share(rolls, 'ichor')).toBeGreaterThan(0.26);
-    expect(share(rolls, 'ichor')).toBeLessThan(0.34);
+    expect(share(rolls, 'soulShard')).toBeGreaterThan(0.26);
+    expect(share(rolls, 'soulShard')).toBeLessThan(0.34);
   });
 
-  it('large: 3–5 Bone, 1–2 Flesh, 1 Ichor, and always 1 Soul Shard', () => {
+  it('large: 3–5 Bone, 1–2 Flesh, 1 Soul Shard, and always 1 Ichor', () => {
     const rolls = rollMany('large', false);
     expect(new Set(values(rolls, 'bone'))).toEqual(new Set([3, 4, 5]));
     expect(new Set(values(rolls, 'flesh'))).toEqual(new Set([1, 2]));
-    expect(new Set(values(rolls, 'ichor'))).toEqual(new Set([1]));
     expect(new Set(values(rolls, 'soulShard'))).toEqual(new Set([1]));
+    expect(new Set(values(rolls, 'ichor'))).toEqual(new Set([1]));
   });
 
   it('elite: every rolled amount × 4, plus 1 Soul Shard whatever the size', () => {
     const smalls = rollMany('small', true, 500);
     expect(new Set(values(smalls, 'bone'))).toEqual(new Set([4, 8]));
-    expect(new Set(values(smalls, 'soulShard'))).toEqual(new Set([1]));
+    // 1 from the bonus, or 5 when the 15% Soul Shard also rolled (1 × 4 + 1).
+    expect(new Set(values(smalls, 'soulShard'))).toEqual(new Set([1, 5]));
     const larges = rollMany('large', true, 500);
     expect(new Set(values(larges, 'soulShard'))).toEqual(new Set([5]));
     expect(new Set(values(larges, 'ichor'))).toEqual(new Set([4]));
@@ -56,8 +57,8 @@ describe('Resources', () => {
     const r = new Resources();
     expect(r.add('bone', 250)).toBe(200);
     expect(r.get('bone')).toBe(200);
-    expect(r.add('soulShard', 60)).toBe(50);
-    expect(r.add('soulShard', 1)).toBe(0);
+    expect(r.add('ichor', 60)).toBe(50);
+    expect(r.add('ichor', 1)).toBe(0);
   });
 
   it('spends a whole cost or nothing', () => {

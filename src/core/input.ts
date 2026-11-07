@@ -94,6 +94,16 @@ export class Input {
     this.buttonsPressed.clear();
   }
 
+  /**
+   * Forget this tick's fresh presses but keep what is held. Used when a menu opens: keys and
+   * buttons still held when it closes work again at once, with no need to press them again.
+   * (Key-up events still arrive while a menu is open, so nothing can stick.)
+   */
+  clearPresses(): void {
+    this.keysPressed.clear();
+    this.buttonsPressed.clear();
+  }
+
   /** Forget everything, e.g. when the window loses focus and key-up events may never arrive. */
   clearAll(): void {
     this.keysHeld.clear();

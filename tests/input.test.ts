@@ -90,3 +90,19 @@ describe('control bindings', () => {
     }
   });
 });
+
+describe('menus and held input', () => {
+  it('keeps keys and buttons held through a menu, so they work at once after it closes', () => {
+    const input = new Input();
+    input.keyDown('KeyW');
+    input.mouseDown(0);
+    // A menu opens: fresh presses are dropped, held input is kept.
+    input.clearPresses();
+    expect(input.wasKeyPressed('KeyW')).toBe(false);
+    expect(input.isKeyDown('KeyW')).toBe(true);
+    expect(input.isButtonDown(0)).toBe(true);
+    // A key released while the menu was open is released.
+    input.keyUp('KeyW');
+    expect(input.isKeyDown('KeyW')).toBe(false);
+  });
+});

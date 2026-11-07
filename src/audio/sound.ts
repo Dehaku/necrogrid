@@ -31,13 +31,16 @@ export class SoundPlayer {
     private readonly listener: () => Point | undefined,
   ) {}
 
-  /** Plays a sound unless muted, rate-limited, or too far away. Returns whether it played. */
-  play(id: SoundId, at?: Point): boolean {
+  /**
+   * Plays a sound unless muted, rate-limited, or too far away. Returns whether it played.
+   * `force` skips the rate limit (the debug sound test).
+   */
+  play(id: SoundId, at?: Point, force = false): boolean {
     if (!this.backend || this.volume <= 0) return false;
     const def = SOUNDS[id];
     const now = this.clock();
     const last = this.lastPlayed.get(id);
-    if (last !== undefined && now - last < def.minInterval) return false;
+    if (!force && last !== undefined && now - last < def.minInterval) return false;
     let gain = def.gain * this.volume;
     if (def.positional && at) {
       const ear = this.listener();
@@ -94,11 +97,29 @@ export class WebAudioBackend implements AudioBackend {
 
   unlock(): void {
     try {
-      this.ctx ??= new AudioContext();
+      if (!this.ctx) {
+        this.ctx = new AudioContext();
+        this.startKeepAlive(this.ctx);
+      }
       if (this.ctx.state === 'suspended') void this.ctx.resume();
     } catch {
       this.ctx = undefined; // no Web Audio: stay silent
     }
+  }
+
+  /**
+   * Plays an inaudible loop for as long as the page is open, so the browser never sees a
+   * silent output and puts the audio device to sleep (see `AUDIO.keepAliveLevel`).
+   */
+  private startKeepAlive(ctx: AudioContext): void {
+    const source = ctx.createBufferSource();
+    source.buffer = this.noiseBuffer(ctx);
+    source.loop = true;
+    const level = ctx.createGain();
+    level.gain.value = AUDIO.keepAliveLevel;
+    source.connect(level);
+    level.connect(ctx.destination);
+    source.start();
   }
 
   play(def: SoundDef, gain: number): void {

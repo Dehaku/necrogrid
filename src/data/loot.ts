@@ -8,13 +8,16 @@ export type LootRoll = { min: number; max: number } | { chance: number };
 
 /** Loot by corpse size. Missing resources drop nothing. */
 export const LOOT: Readonly<Record<CorpseSize, Partial<Record<ResourceId, LootRoll>>>> = {
-  small: { bone: { min: 1, max: 2 }, ichor: { chance: 0.15 } },
-  medium: { bone: { min: 2, max: 3 }, flesh: { chance: 0.5 }, ichor: { chance: 0.3 } },
-  large: { bone: { min: 3, max: 5 }, flesh: { min: 1, max: 2 }, ichor: { min: 1, max: 1 }, soulShard: { min: 1, max: 1 } },
+  small: { bone: { min: 1, max: 2 }, soulShard: { chance: 0.15 } },
+  medium: { bone: { min: 2, max: 3 }, flesh: { chance: 0.5 }, soulShard: { chance: 0.3 } },
+  large: { bone: { min: 3, max: 5 }, flesh: { min: 1, max: 2 }, soulShard: { min: 1, max: 1 }, ichor: { min: 1, max: 1 } },
 };
 
-/** Elite corpses: every rolled amount × multiplier, then this many Soul Shards added (section 7.1). */
-export const ELITE_LOOT = { multiplier: 4, bonusSoulShards: 1 } as const;
+/** Elite corpses: every rolled amount × multiplier, then `bonus` added (section 7.1). */
+export const ELITE_LOOT: { readonly multiplier: number; readonly bonus: Partial<Record<ResourceId, number>> } = {
+  multiplier: 4,
+  bonus: { soulShard: 1 },
+};
 
 export const HARVEST = {
   /** Tiles from the player's center to the corpse's center. */

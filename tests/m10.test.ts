@@ -186,3 +186,50 @@ describe('bolt events', () => {
     expect(casts).toContain('totem');
   });
 });
+
+describe('audio keep-alive', () => {
+  it('starts one inaudible looping source when audio unlocks, so the output never sleeps', async () => {
+    const { WebAudioBackend } = await import('../src/audio/sound');
+    const started: { loop: boolean; gain: number }[] = [];
+    class FakeContext {
+      state = 'running';
+      sampleRate = 8000;
+      destination = {};
+      createBuffer() {
+        return { getChannelData: () => new Float32Array(8000) };
+      }
+      createGain() {
+        return { gain: { value: 1 }, connect() {} };
+      }
+      createBufferSource() {
+        const node = {
+          buffer: null as unknown,
+          loop: false,
+          gainNode: undefined as { gain: { value: number } } | undefined,
+          connect(g: { gain: { value: number } }) {
+            node.gainNode = g;
+          },
+          start() {
+            started.push({ loop: node.loop, gain: node.gainNode!.gain.value });
+          },
+        };
+        return node;
+      }
+      resume() {
+        return Promise.resolve();
+      }
+    }
+    const g = globalThis as { AudioContext?: unknown };
+    const original = g.AudioContext;
+    g.AudioContext = FakeContext;
+    try {
+      const backend = new WebAudioBackend();
+      backend.unlock();
+      backend.unlock(); // a second gesture does not start another
+      expect(started).toEqual([{ loop: true, gain: AUDIO.keepAliveLevel }]);
+      expect(AUDIO.keepAliveLevel).toBeLessThan(1e-4);
+    } finally {
+      g.AudioContext = original;
+    }
+  });
+});

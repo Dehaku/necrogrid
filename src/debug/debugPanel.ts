@@ -1,6 +1,7 @@
 // Debug panel: testing tools, enabled only with ?debug in the URL. Toggled with backtick.
 // GAME_DESIGN.md section 13. Tools so far: M2 (time, seed, stats) and M3 (spawning, overlays).
 
+import { SOUNDS, type SoundId } from '../data/audio';
 import { CONTROLS } from '../data/controls';
 import { ENEMIES, type EnemyId } from '../data/enemies';
 import { RESOURCE_ORDER, RESOURCES, type ResourceId } from '../data/resources';
@@ -43,13 +44,30 @@ export interface DebugHooks {
   entityCounts(): Record<string, number>;
   /** Extra readout lines (HP, spawn budget, ...). */
   extraReadout(): string[];
+  /** Play one sound effect (the sound test). */
+  playSound(id: SoundId): void;
 }
+
+/** One slow frame, for the spike log. */
+interface Spike {
+  at: number;
+  frameMs: number;
+  ticks: number;
+  tickMs: number;
+  renderMs: number;
+  /** Seconds since the game last resumed from a pause or menu, if it has. */
+  sinceResume: number | undefined;
+}
+
+/** Frames slower than this (ms between frames) go in the spike log. */
+const SPIKE_FRAME_MS = 25;
+const SPIKE_LOG_SIZE = 6;
 
 /** Refresh the text readouts this often, in milliseconds. */
 const READOUT_INTERVAL = 250;
 
 const STYLE = `
-.ng-debug { position: fixed; top: 8px; left: 8px; z-index: 10; width: 240px; max-height: calc(100vh - 16px);
+.ng-debug { position: fixed; top: 8px; left: 8px; z-index: 10; width: 280px; max-height: calc(100vh - 16px);
   overflow-y: auto; padding: 8px 10px; background: rgba(10, 8, 14, 0.88); color: #ddd6c8;
   border: 1px solid #3a3346; border-radius: 6px; font: 12px/1.45 ui-monospace, Consolas, monospace; user-select: none; }
 .ng-debug[hidden] { display: none; }
@@ -88,6 +106,8 @@ export class DebugPanel {
   private lastReadout = 0;
   private fps = 0;
   private msPerTick = 0;
+  private spikes: Spike[] = [];
+  private lastResume: number | undefined;
 
   constructor(private readonly hooks: DebugHooks) {
     const style = document.createElement('style');
@@ -139,6 +159,11 @@ export class DebugPanel {
         </select>
       </div>
       <div class="row"><label><input data-spawn-overlay type="checkbox" /> Spawn map</label></div>
+      <div class="label">Sound test</div>
+      <div class="row">
+        <select data-sound>${(Object.keys(SOUNDS) as SoundId[]).map((id) => `<option value="${id}">${id}</option>`).join('')}</select>
+        <button data-play-sound>Play</button>
+      </div>
       <pre data-readout></pre>`;
     document.body.append(this.root);
     this.readout = this.query<HTMLPreElement>('[data-readout]');
@@ -177,6 +202,8 @@ export class DebugPanel {
     this.bindCheckbox('[data-spawn-overlay]', (on) => (this.settings.spawnOverlay = on));
     const typeSelect = this.query<HTMLSelectElement>('[data-spawn-type]');
     typeSelect.addEventListener('change', () => (this.settings.spawnType = typeSelect.value as EnemyId));
+    const soundSelect = this.query<HTMLSelectElement>('[data-sound]');
+    this.query('[data-play-sound]').addEventListener('click', () => hooks.playSound(soundSelect.value as SoundId));
     const flowSelect = this.query<HTMLSelectElement>('[data-flow]');
     flowSelect.addEventListener('change', () => (this.settings.flowOverlay = flowSelect.value as DebugSettings['flowOverlay']));
 
@@ -196,8 +223,17 @@ export class DebugPanel {
     });
   }
 
-  /** Call once per rendered frame. */
-  recordFrame(now: number): void {
+  /** Call when the game resumes from any pause, so spikes can say how long after it they came. */
+  markResume(now: number): void {
+    this.lastResume = now;
+  }
+
+  /** Call once per rendered frame, with how long it took and where the time went. */
+  recordFrame(now: number, timing?: { frameMs: number; ticks: number; tickMs: number; renderMs: number }): void {
+    if (timing && timing.frameMs > SPIKE_FRAME_MS && this.frames + this.tickCount > 0) {
+      this.spikes.push({ at: now, ...timing, sinceResume: this.lastResume === undefined ? undefined : (now - this.lastResume) / 1000 });
+      if (this.spikes.length > SPIKE_LOG_SIZE) this.spikes.shift();
+    }
     this.frames++;
     const windowLength = now - this.windowStart;
     if (windowLength >= 1000) {
@@ -250,6 +286,14 @@ export class DebugPanel {
       `Seed ${this.hooks.seed()}`,
       ...this.hooks.extraReadout(),
       ...Object.entries(this.hooks.entityCounts()).map(([name, count]) => `${name.padEnd(10)}${count}`),
+      `Slow frames > ${SPIKE_FRAME_MS} ms (+s = after resume):`,
+      ...(this.spikes.length === 0
+        ? ['  none']
+        : [...this.spikes].reverse().map((s) =>
+            // Game = ticks + drawing; the rest of the gap was spent by the browser (GC, audio, GPU).
+            `  ${s.frameMs.toFixed(0)} ms: game ${(s.tickMs + s.renderMs).toFixed(1)}, other ${Math.max(0, s.frameMs - s.tickMs - s.renderMs).toFixed(0)}` +
+            (s.sinceResume !== undefined && s.sinceResume < 10 ? `, +${s.sinceResume.toFixed(1)} s` : ''),
+          )),
     ];
     this.readout.textContent = lines.join('\n');
   }

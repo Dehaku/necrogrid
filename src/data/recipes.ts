@@ -52,33 +52,33 @@ const mul = (stat: StatId, value: number): Modifier => ({ stat, op: 'mul', value
 export const GEAR: readonly GearDef[] = [
   { id: 'boneStaff', name: 'Bone Staff', slot: 'weapon', recipe: { bone: 12, flesh: 4 }, needsAltar: false, modifiers: [add('boltDamage', 4)] },
   {
-    id: 'gravewoodStaff', name: 'Gravewood Staff', slot: 'weapon', recipe: { bone: 8, ichor: 6 }, needsAltar: true,
+    id: 'gravewoodStaff', name: 'Gravewood Staff', slot: 'weapon', recipe: { bone: 8, soulShard: 6 }, needsAltar: true,
     modifiers: [add('boltDamage', 8), add('boltCooldown', -0.05)],
   },
   {
-    id: 'lichStaff', name: 'Lich Staff', slot: 'weapon', recipe: { ichor: 10, soulShard: 3 }, needsAltar: true,
+    id: 'lichStaff', name: 'Lich Staff', slot: 'weapon', recipe: { soulShard: 10, ichor: 3 }, needsAltar: true,
     modifiers: [add('boltDamage', 14), add('boltManaCost', -2), mul('chainDamage', 1.25)],
   },
   { id: 'shroudOfRot', name: 'Shroud of Rot', slot: 'robe', recipe: { flesh: 10 }, needsAltar: false, modifiers: [add('maxHp', 25)] },
   {
-    id: 'graveVestments', name: 'Grave Vestments', slot: 'robe', recipe: { bone: 6, flesh: 8, ichor: 4 }, needsAltar: true,
+    id: 'graveVestments', name: 'Grave Vestments', slot: 'robe', recipe: { bone: 6, flesh: 8, soulShard: 4 }, needsAltar: true,
     modifiers: [add('maxHp', 40), add('maxMana', 30), add('manaRegen', 2)],
   },
   {
-    id: 'shroudOfTheUndying', name: 'Shroud of the Undying', slot: 'robe', recipe: { flesh: 12, ichor: 8, soulShard: 3 }, needsAltar: true,
+    id: 'shroudOfTheUndying', name: 'Shroud of the Undying', slot: 'robe', recipe: { flesh: 12, soulShard: 8, ichor: 3 }, needsAltar: true,
     modifiers: [add('maxHp', 60), add('maxMana', 60), add('manaRegen', 4)],
   },
-  { id: 'ringOfMarrow', name: 'Ring of Marrow', slot: 'charm', recipe: { bone: 5, ichor: 3 }, needsAltar: false, modifiers: [add('manaRegen', 3)] },
+  { id: 'ringOfMarrow', name: 'Ring of Marrow', slot: 'charm', recipe: { bone: 5, soulShard: 3 }, needsAltar: false, modifiers: [add('manaRegen', 3)] },
   {
-    id: 'manaPhial', name: 'Mana Phial', slot: 'charm', recipe: { flesh: 6, ichor: 4 }, needsAltar: false,
+    id: 'manaPhial', name: 'Mana Phial', slot: 'charm', recipe: { flesh: 6, soulShard: 4 }, needsAltar: false,
     modifiers: [add('maxMana', 50), add('manaRegen', 2)],
   },
   {
-    id: 'chainFocus', name: 'Chain Focus', slot: 'charm', recipe: { ichor: 10, soulShard: 3 }, needsAltar: true,
+    id: 'chainFocus', name: 'Chain Focus', slot: 'charm', recipe: { soulShard: 10, ichor: 3 }, needsAltar: true,
     modifiers: [add('chainMaxJumps', 1), add('chainCooldown', -0.2)],
   },
   {
-    id: 'heartOfAsh', name: 'Heart of Ash', slot: 'charm', recipe: { ichor: 12, soulShard: 5 }, needsAltar: true,
+    id: 'heartOfAsh', name: 'Heart of Ash', slot: 'charm', recipe: { soulShard: 12, ichor: 5 }, needsAltar: true,
     modifiers: [add('manaRegen', 6), mul('boltDamage', 1.2)],
   },
 ];

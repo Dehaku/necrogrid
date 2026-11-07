@@ -63,3 +63,41 @@ export const SHAKE = {
   /** The Phylactery takes a hit of at least `minDamage` while on screen. */
   phylacteryHit: { minDamage: 15, trauma: 0.3 },
 } as const;
+
+/** Endless mode reward: gentle diagonal cyan shooting stars at night (screen space). */
+export const STARFALL = {
+  /** Stars per second at full night (scaled by the night blend at dusk and dawn). */
+  rate: 1.2,
+  /** Never more than this many at once ("just a few"). */
+  maxStars: 5,
+  /** Pixels per second: drifting down and to the left. */
+  velocity: { x: -150, y: 230 },
+  /** Random ± spread on speed (fraction). */
+  speedSpread: 0.25,
+  /** Trail length in pixels. */
+  trail: { min: 40, max: 80 },
+  /** Seconds each star lives (it fades in and out). */
+  life: { min: 1.6, max: 2.6 },
+  color: '127, 243, 255',
+  maxOpacity: 0.85,
+} as const;
+
+/**
+ * The Phylactery's soft pulse. Still until the final day; through that day's countdown it
+ * quickens from `startHz` to `endHz`, then settles to a calm `boundHz` glow in endless mode.
+ */
+export const PHYLACTERY_PULSE = {
+  startHz: 0.4,
+  endHz: 2,
+  boundHz: 0.35,
+  glowRgb: '200, 170, 255',
+  /** Opacity of the inner glow at the top of a pulse. */
+  glowMax: 0.4,
+  /** Glow blur around the edge in pixels, at rest and at the top of a pulse. */
+  haloMin: 4,
+  haloMax: 18,
+  /** At night it lights a small area: this many tiles at rest, plus `lightPulse` at the top of a pulse. */
+  lightRadius: 2.2,
+  lightPulse: 1.2,
+  timerColor: '#ffcf5a',
+} as const;

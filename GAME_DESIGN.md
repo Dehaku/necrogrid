@@ -3,7 +3,7 @@
 **Working title:** Necrogrid (placeholder)
 **Platform:** Desktop browser (Chrome/Firefox/Edge), keyboard + mouse
 **Genre:** Top-down survival with grid-based base building
-**Status:** Design v0.20. Buildable from M0; decisions are listed in section 18.
+**Status:** Design v0.23. Buildable from M0; decisions are listed in section 18.
 
 > **How to use this document:** Each milestone in section 14 is a self-contained build step. Build them in order. Every numeric value in this document is a *starting value* that lives in `src/data/` so it can be tuned without touching logic. Flavor text lives in `lore.md` and never overrides mechanics here.
 
@@ -33,6 +33,9 @@
 | 0.18 | M9 built: Wraiths (fade-in, Lantern targeting, slow shots blocked by buildings) and Hellhounds join the roster; day-15 countdown and win screen with endless Continue; respawn after completion; Phylactery destruction ends the run; warning banners. |
 | 0.19 | Shorter run: day 75 s and night 40 s (dusk and dawn stay 10 s), and the Phylactery completes on day 7 instead of day 15. Spawns of every enemy grow each day, day and night (×2.5 by day 7), and the active cap grows with them. Brutes from day 3. Grave Lanterns slowly heal the player and repair buildings for free. Each Altar adds 50 to every resource cap. |
 | 0.20 | Corpse Collectors link to a corpse for their whole 3–5 s duration (a live jagged line) and take it at the end. M10 built: synthesized placeholder sound effects with master volume, particles, screen shake (Settings toggle), local best score on the title and end screens, and a relative-path build. |
+| 0.21 | Playtest feedback: pause screen kill gallery with drop-rate tooltips; cyan shooting stars on endless nights; banners when Brutes and Hellhounds first arrive; the final-day countdown moved onto the Phylactery, which now pulses faster over the run; held keys survive menus; softer sounds and a debug sound test. |
+| 0.22 | Ichor and Soul Shard swap roles everywhere: Soul Shards are now the chance drop from small and medium corpses and pay for Totems, the Altar, Marsh, and most gear; Ichor comes from large corpses and elites and pays for top-tier gear. Shooting stars live in the world, not the screen. The Phylactery stays still until the final day. Debug spike log for slow frames. |
+| 0.23 | Marsh costs Ichor again; the elite bonus is a Soul Shard again. Audio keep-alive: an inaudible signal keeps the browser's audio output awake through pauses. It did not fix the brief stutter right after leaving a pause or menu (see known issues in section 16). |
 
 ---
 
@@ -313,6 +316,7 @@ Mend spends Flesh directly, so it needs no consumable inventory. Values live in 
 - Call `preventDefault` on: `contextmenu` (right click), Tab, backtick, and every key in the controls table, so the browser never opens menus, moves focus, or scrolls.
 - Convert mouse positions from window pixels to the 1280 × 720 logical view (accounting for letterbox offset and scale), then to world coordinates through the camera.
 - When the window loses focus, clear all held keys and mouse buttons, so nothing stays "stuck down" after returning.
+- Opening a menu (pause, equipment, crafting) clears only fresh presses, not held input. A movement key or mouse button still held when the menu closes works again at once, with no need to press it again (v0.21; before, held input was cleared and the game felt unresponsive after every menu).
 - **Auto-pause:** the game pauses whenever the tab is hidden or the window loses focus, and shows "Click or press any key to resume". The input that resumes the game is **consumed**: it does not also cast a spell, move, or trigger a hotkey.
 - **Menus pause:** the crafting menu (C), the equipment screen (Tab), and the pause screen (Esc, section 8.5) all pause the simulation while open. Build mode (B) does not pause.
 - Auto-pause does nothing while a menu or the title screen is already open.
@@ -326,7 +330,7 @@ Drawn in screen space by `src/ui/hud.ts`, after the world. Each element lists th
 | **Health crescent** | Around the necromancer, left side | Red arc over a black background arc. See crescent rules below | M4 |
 | **Mana crescent** | Around the necromancer, right side | Blue arc over a black background arc. Same rules | M4 |
 | **Day ring** | Top-right corner | Pie-slice clock of the cycle. See day ring rules below | M2 |
-| **Phylactery panel** | Top-center | Phylactery HP bar, colored like health bars (below). On day 7 a completion countdown (`1:15` → `0:00`) appears under it. After completion it reads "Bound" | M7 (HP), M9 (countdown) |
+| **Phylactery panel** | Top-center | Phylactery HP bar, colored like health bars (below). After completion it reads "Bound". The final-day countdown is on the Phylactery itself (section 10.4) | M7 (HP), M9 (Bound) |
 | **Phylactery arrow** | Screen edge | While the Phylactery is off screen, an arrow at the screen edge points toward it. It flashes red for 2 s after the Phylactery takes damage | M7 |
 | **Resources** | Top-left | Compact counters (Bone, Flesh, Ichor, Soul Shard). See resource rules below | M6 |
 | **Pickup popups** | In the world, over the corpse or Collector | "+3 Bone" style text, rising and fading over 1 s. One line per resource gained | M6 |
@@ -375,6 +379,10 @@ Drawn in screen space by `src/ui/hud.ts`, after the world. Each element lists th
 | "Phylactery critical!" | When Phylactery HP falls below 25%. Shown again only after it has been repaired above 25% |
 | "Day 7. The binding begins" | Start of day 7 (the final day, `DAY_CYCLE.winDay`) |
 | "The Phylactery is complete" | On completion (the win) |
+| "Day 3. Brutes have entered the battlefield" | Start of day 3, when Brutes first spawn |
+| "Day 5. Hellhounds have awoken" | Start of day 5, when Hellhounds first spawn |
+
+Arrival banners come from each enemy's `arrival` text in `src/data/enemies.ts`, shown on its `minDay` (above day 1).
 
 ### 8.5 Title and Pause Screen
 
@@ -382,6 +390,7 @@ One screen, `src/ui/titleScreen.ts`, serves as both the title screen and the pau
 
 - **On page load** it opens as the title screen, with no run active. The background is a flat `#0d0b10`.
 - **During a run**, Esc opens it as the pause screen. The paused world stays drawn behind it under a 70% black overlay.
+- **Kill gallery (pause screen):** below the buttons, a row of every enemy type slain this run, drawn with its world shape, with the number killed under it. Hovering one shows a tooltip with its corpse size and drop rates from the loot table (section 9.2), including the elite bonus. With no kills yet it reads "No demons slain yet".
 - A run is **active** from New Game until it is lost. After the win, the run stays active in endless mode.
 
 **Title animation ("rising from the grave"):**
@@ -420,8 +429,8 @@ Resources are plain counters. They go up when harvested and down when spent. The
 |---|---|---|---|
 | **Bone** | basic | Every corpse | Basic buildings, basic gear, repairs |
 | **Flesh** | basic | Medium and large corpses | Mend, some buildings and gear |
-| **Ichor** | rare | Any corpse (chance on small and medium, guaranteed on large) | Magic buildings, advanced gear |
-| **Soul Shard** | rare | Large corpses (Brutes) and every elite, guaranteed | Top-tier gear |
+| **Ichor** | rare | Large corpses (Brutes), guaranteed | Marsh, top-tier gear |
+| **Soul Shard** | rare | Any corpse (chance on small and medium, guaranteed on large and as the elite bonus) | Totems, the Altar, advanced gear |
 
 Cap: 200 of each basic resource, 50 of each rare resource. Each standing Altar adds 50 to every cap (`ALTAR.capBonus`, stacking). Anything gained over the cap is lost. If an Altar is lost, amounts already above the new cap are kept but cannot grow until spent below it.
 
@@ -437,8 +446,8 @@ Cap: 200 of each basic resource, 50 of each rare resource. Each standing Altar a
 
 | Size | Bone | Flesh | Ichor | Soul Shard |
 |---|---|---|---|---|
-| Small | 1–2 | 0 | 15% | 0 |
-| Medium | 2–3 | 50% | 30% | 0 |
+| Small | 1–2 | 0 | 0 | 15% |
+| Medium | 2–3 | 50% | 0 | 30% |
 | Large | 3–5 | 1–2 | 1 | 1 |
 
 The loot table lives in `src/data/loot.ts`, keyed by corpse size. Elite corpses give 4× the rolled amounts plus 1 guaranteed Soul Shard (section 7.1).
@@ -469,9 +478,9 @@ The loot table lives in `src/data/loot.ts`, keyed by corpse size. Elite corpses 
 |---|---|---|---|---|---|
 | 1 | **Bone Wall** | 1×1 | 4 Bone | 150 | Blocks the player, enemies, and Wraith shots |
 | 2 | **Bone Door** | 1×1 | 12 Bone | 150 | Same as a Bone Wall, but the player can walk through it. Enemies cannot |
-| 3 | **Bone Totem** | 1×1 | 10 Bone, 5 Ichor | 80 | Turret. Fires a bolt at the nearest enemy within 6 tiles every 1.0 s, damage 8 |
+| 3 | **Bone Totem** | 1×1 | 10 Bone, 5 Soul Shard | 80 | Turret. Fires a bolt at the nearest enemy within 6 tiles every 1.0 s, damage 8 |
 | 4 | **Corpse Collector** | 1×1 | 8 Bone, 2 Flesh | 80 | Instantly harvests the nearest corpse within 3 tiles, then waits a random 3–5 s cooldown (section 10.2.1) |
-| 5 | **Altar** | 2×2 | 10 Flesh, 10 Ichor | 150 | Crafting station. +4 mana regen aura, radius 5 tiles. +50 to every resource cap (section 9.1) |
+| 5 | **Altar** | 2×2 | 10 Flesh, 10 Soul Shard | 150 | Crafting station. +4 mana regen aura, radius 5 tiles. +50 to every resource cap (section 9.1) |
 | 6 | **Grave Lantern** | 1×1 | 3 Bone, 2 Flesh | 40 | Lights a 4-tile radius around itself at night. Slow, free heal and repair aura (below). Draws Wraith targeting (decoy, `aggroWeight = 2`) |
 | 7 | **Marsh** | 1×1 | 10 Flesh, 1 Ichor | — | Terrain edit, not a building: turns a grass or dirt tile into `marsh`, which slows the player and ground demons by 50% |
 | 8 | **Fill** | 1×1 | 5 Bone, 5 Flesh | — | Terrain edit: turns any `marsh` tile, wild or player-made, into `dirt` (which is buildable) |
@@ -518,19 +527,19 @@ There are three slots: **Weapon**, **Robe**, and **Charm**. Each slot has a prog
 | Item | Slot | Recipe | Stat effects |
 |---|---|---|---|
 | **Bone Staff** | Weapon | 12 Bone, 4 Flesh | Bolt damage +4 |
-| **Gravewood Staff** | Weapon | 8 Bone, 6 Ichor (needs Altar) | Bolt damage +8, Bolt cooldown −0.05 s |
-| **Lich Staff** | Weapon | 10 Ichor, 3 Soul Shard (needs Altar) | Bolt damage +14, Bolt mana cost −2, Chain damage ×1.25 |
+| **Gravewood Staff** | Weapon | 8 Bone, 6 Soul Shard (needs Altar) | Bolt damage +8, Bolt cooldown −0.05 s |
+| **Lich Staff** | Weapon | 10 Soul Shard, 3 Ichor (needs Altar) | Bolt damage +14, Bolt mana cost −2, Chain damage ×1.25 |
 | **Shroud of Rot** | Robe | 10 Flesh | Max HP +25 |
-| **Grave Vestments** | Robe | 6 Bone, 8 Flesh, 4 Ichor (needs Altar) | Max HP +40, Max Mana +30, Mana regen +2 |
-| **Shroud of the Undying** | Robe | 12 Flesh, 8 Ichor, 3 Soul Shard (needs Altar) | Max HP +60, Max Mana +60, Mana regen +4 |
-| **Ring of Marrow** | Charm | 5 Bone, 3 Ichor | Mana regen +3 |
-| **Mana Phial** | Charm | 6 Flesh, 4 Ichor | Max Mana +50, Mana regen +2 |
-| **Chain Focus** | Charm | 10 Ichor, 3 Soul Shard (needs Altar) | Chain max jumps +1, Chain cooldown −0.2 s |
-| **Heart of Ash** | Charm | 12 Ichor, 5 Soul Shard (needs Altar) | Mana regen +6, Bolt damage ×1.2 |
+| **Grave Vestments** | Robe | 6 Bone, 8 Flesh, 4 Soul Shard (needs Altar) | Max HP +40, Max Mana +30, Mana regen +2 |
+| **Shroud of the Undying** | Robe | 12 Flesh, 8 Soul Shard, 3 Ichor (needs Altar) | Max HP +60, Max Mana +60, Mana regen +4 |
+| **Ring of Marrow** | Charm | 5 Bone, 3 Soul Shard | Mana regen +3 |
+| **Mana Phial** | Charm | 6 Flesh, 4 Soul Shard | Max Mana +50, Mana regen +2 |
+| **Chain Focus** | Charm | 10 Soul Shard, 3 Ichor (needs Altar) | Chain max jumps +1, Chain cooldown −0.2 s |
+| **Heart of Ash** | Charm | 12 Soul Shard, 5 Ichor (needs Altar) | Mana regen +6, Bolt damage ×1.2 |
 
 **Equipment screen (Tab):** three columns (Weapon, Robe, Charm), each listing "(none)" and every unlocked item for that slot, with the equipped one ticked. Up/Down move, Left/Right jump between columns, Enter or a click equips (or empties the slot with "(none)"). A stats summary at the bottom shows the result. Swapping is free and instant.
 
-**Ichor budget:** crafting all ten items needs 57 Ichor in total, more than the 50 cap, so Ichor has to be spent as it comes in rather than banked.
+**Soul Shard budget:** crafting all ten items needs 57 Soul Shards in total, more than the base 50 cap, so Soul Shards have to be spent as they come in (or the cap raised with Altars) rather than banked.
 
 **Modifiable stats:** `maxHp`, `maxMana`, `manaRegen`, `boltDamage`, `boltCooldown`, `boltManaCost`, `chainDamage`, `chainMaxJumps`, `chainCooldown`.
 
@@ -551,6 +560,7 @@ The Phylactery is the binding the necromancer is building. It is the reason the 
 | Completion timer | 75 s, runs for the whole of day 7 (the final day) |
 
 - **Construction (lore):** the binding is built over all 7 days. The necromancer works on it from the first dawn, and the lore has no separate progress for days 1–6.
+- **Countdown and pulse:** on the final day the countdown (`1:15` → `0:00`) is drawn on the Phylactery itself, over the night darkness. Until the final day the Phylactery is still. Through the final day's countdown it pulses softly (a glow and a halo), quickening from 0.4 pulses per second to 2 as it completes; once bound it pulses calmly at 0.35. At night it lights a small area around it (2.2 tiles, up to 3.4 at the top of a pulse). Values in `PHYLACTERY_PULSE` (`src/data/fx.ts`).
 - **Construction (mechanical):** nothing happens on days 1–6 except the normal game. The completion timer runs only during day 7. It completes when it reaches 75 s with the Phylactery still standing, and that completion is the win.
 - **Immortality (flavor and effect):** completing the Phylactery binds the necromancer's soul to it. From that moment, the necromancer has infinite lives. Each death pulls on the binding (below).
 - **Respawn** (after completion only):
@@ -576,6 +586,7 @@ Gaps in the wall ring are expected. They give enemies a route in, so the first f
 ## 11. Win and Lose Conditions
 
 - **Win:** the Phylactery completes when day 7's day phase ends with it standing (section 10.4); the panel counts down 1:15 → 0:00 during that phase, then reads "Bound". The game pauses on "The Phylactery is complete" with a summary and a **Continue** button. Continue resumes the run in endless mode (the day ring shows "Day N" only).
+- **Endless nights:** as a small reward, a few gentle cyan shooting stars fall diagonally (down and to the left) across the night sky: about 1.2 per second at full night, never more than 5 at once, drawn over the darkness. They live in world space, so they stay in place in the sky as the player moves (`STARFALL` in `src/data/fx.ts`).
 - **Respawn view:** while the necromancer is gone (3 s), the necromancer and their HUD are hidden, "Your soul returns to the Phylactery… N" counts down, and the camera pans to the Phylactery. Enemies ignore the dead necromancer.
 - **Lose (before completion):** player HP reaches 0, or the Phylactery is destroyed. The end screen shows the day reached, the number of corpses harvested, the score, and the best score (or "New best!"), with a **Return to title** button. The run is no longer active, so the title screen shows no Resume.
 - **Lose (after completion):** only if the Phylactery is destroyed. Player death is not a loss; the necromancer respawns (section 10.4). Each death costs the Phylactery 30 HP, which can destroy it.
@@ -617,6 +628,8 @@ Testing a full run takes about an hour, so the build needs debug tools from earl
 | God mode | Player and Phylactery take no damage | M4 |
 | Grant resources | Add 50 of any resource, or 50 of all four | M6 |
 | Unlock all gear | Unlock every item in section 10.3 | M8 |
+| Sound test | Play any sound effect by name, ignoring its rate limit | v0.21 |
+| Slow frames log | The last 6 frames slower than 25 ms: total time, the game's share (ticks + drawing), the rest (browser: garbage collection, audio, GPU), and how long after the last resume from a pause or menu | v0.22 |
 
 Time scale runs more fixed 1/60 s steps per frame; it never changes the step size. That keeps sped-up runs deterministic.
 
@@ -668,7 +681,7 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 - Mend on Q (section 8.2).
 - Resource counters on the equipment screen (Tab).
 - Settings screen (section 12) with the corpse render limit.
-- **Done when:** killed enemies leave corpses, harvesting adds the right resources, corpses fade out across the correct day phase, large corpses always give a Soul Shard, Mend heals 25 HP for 5 Flesh, and only the newest N corpses are drawn.
+- **Done when:** killed enemies leave corpses, harvesting adds the right resources, corpses fade out across the correct day phase, large corpses always give Ichor and a Soul Shard, Mend heals 25 HP for 5 Flesh, and only the newest N corpses are drawn.
 
 ### M7 — Building Placement and Starting Base
 - Build mode (B), ghost preview (green/red), grid snapping, footprint validation including units and the no-build zone.
@@ -695,7 +708,7 @@ Each milestone should be playable or testable on its own. Do not start a milesto
 - Sound effects (optional, can be stubbed), particles, screen shake on big hits, local best-score save.
 - Set Vite's `base` to `'./'` so the build works from any folder. The hosting site is not chosen yet (GitHub Pages and itch.io both serve a static build for free).
 - **Built (v0.20):**
-  - **Sound** (`src/audio/sound.ts`, values in `src/data/audio.ts`): short synthesized placeholder effects (an oscillator or filtered noise with a pitch sweep; no audio files) for bolts, Totem shots, Chain, hits, deaths, elite deaths, player and Phylactery hits, harvests, Collector takes, building, removing and destruction, Wraith shots, Mend, crafting, dusk and dawn, win, loss, and respawn. Each sound has a minimum interval so swarms do not roar. World sounds fade with distance from the view center, silent at 30 tiles. Master volume scales everything. Audio starts on the first key press or click (browser rule).
+  - **Sound** (`src/audio/sound.ts`, values in `src/data/audio.ts`): short synthesized placeholder effects (an oscillator or filtered noise with a pitch sweep; no audio files) for bolts, Totem shots, Chain, hits, deaths, elite deaths, player and Phylactery hits, harvests, Collector takes, building, removing and destruction, Wraith shots, Mend, crafting, dusk and dawn, win, loss, and respawn. Each sound has a minimum interval so swarms do not roar. Once audio unlocks, an inaudible looping signal (about −100 dB) keeps the output awake, so the browser never puts a silent audio device to sleep (v0.23, a precaution; it did not cure the post-pause stutter). World sounds fade with distance from the view center, silent at 30 tiles. Master volume scales everything. Audio starts on the first key press or click (browser rule).
   - **Particles** (`src/render/particles.ts`, values in `src/data/fx.ts`): enemy deaths burst in the enemy's color (more for larger corpses, gold sparks for elites), hit sparks, building debris in the building's color, soul motes rising from harvested corpses, and purple sparks when the Phylactery is hit. At most 900 at once.
   - **Screen shake** (`src/render/shake.ts`): trauma model, offset = 12 px × trauma², decaying 1.8 per second. Added by player hits of 10+ damage (0.45), player death (0.8), buildings destroyed on screen (0.3), and Phylactery hits of 15+ damage while it is on screen (0.3). Off when Settings → Screen shake is off. It moves only the drawn view, never aiming.
   - **Best score** (`src/ui/bestScore.ts`): saved in local storage under `necrogrid.best` (score, day, whether that run was won). Recorded on the win (score at completion) and on every loss, including an endless run ending later. Shown bottom-left on the title and pause screens, and on the end screen.
@@ -821,7 +834,8 @@ necrogrid/
       titleScreen.ts         # title and pause screen, confirmation, controls and seed panels
       endScreen.ts           # loss and win summaries, best score
       bestScore.ts           # local best score
-      warnings.ts            # warning banners
+      warnings.ts            # warning banners, enemy arrival banners
+      killGallery.ts         # pause screen kill gallery and drop-rate tooltips
       menuWidgets.ts         # shared buttons, dialogs, hit tests
       healthBars.ts          # enemy and building health bars
       resourceHud.ts         # compact resource counters
@@ -838,6 +852,7 @@ necrogrid/
       effects.ts             # attack swipes, damage numbers, chains, popups, Collector links
       particles.ts           # death bursts, sparks, debris, harvest motes
       shake.ts               # screen shake
+      starfall.ts            # endless-night shooting stars
       sprites.ts             # placeholder shapes first, sprites later
     data/
       tuning.ts
@@ -893,6 +908,12 @@ Record every balance change here so intent is not lost.
 | v0.19 | Brute `minDay` | 1 | 3 | Ease the first days |
 | v0.19 | Grave Lantern | Light and decoy only | + heal 1 HP/s, repair 1 HP/s within 4 tiles, free, no stacking | Playtest request |
 | v0.19 | Resource caps | 200 basic / 50 rare | + 50 per Altar | Playtest request |
+| v0.21 | Sounds | Bolt 880→440 Hz, Totem 1100 Hz, Chain sawtooth 1400 Hz, hit noise 2400 Hz, square elite death, sawtooth loss | Bolt 660→330, Totem 800, Chain triangle 900, hit noise 1300 (quieter), triangle elite death and loss | Playtest: one sound was "a little sharp"; softened every bright or buzzy one |
+| v0.22 | Ichor ↔ Soul Shard | Ichor: chance drop, used for most costs; Soul Shard: large and elite drop, top-tier gear | Swapped in every cost, drop, and the elite bonus | Playtest: they felt backwards; Soul Shards should be the precious, always-short resource (Totems now cost Soul Shards) |
+| v0.22 | Phylactery pulse | All run, 0.2 → 1.6 Hz | Final day only, 0.4 → 2 Hz | Playtest: pulsing from the start took away from the final day |
+| v0.23 | Marsh cost | 10 Flesh, 1 Soul Shard | 10 Flesh, 1 Ichor | Playtest request |
+| v0.23 | Elite bonus | 1 Ichor | 1 Soul Shard | Playtest request |
+| v0.23 | (known issue, no change) | — | — | After a pause or menu of a couple of seconds, the first few frames can take 33–83 ms. The game's own work in those frames is about 2–4 ms; the rest is the browser. The audio keep-alive did not fix it. Not noticeable at 20× and judged low impact in playtests; the debug Slow frames log can help if it is revisited |
 
 ## 17. Non-Goals (v1)
 
@@ -943,7 +964,7 @@ Record every balance change here so intent is not lost.
 24. **Movement:** Smoothed field following, no diagonal corner-cutting.
 
 **Confirmed (v0.8):**
-25. **Elite loot:** 4× the rolled amounts plus 1 guaranteed Soul Shard (section 7.1).
+25. **Elite loot:** 4× the rolled amounts plus 1 guaranteed Soul Shard (section 7.1; briefly Ichor in v0.22).
 26. **HUD:** crescents on the character, day ring, Phylactery panel and arrow, compact resources (all shown near an Altar), warnings, contextual prompts. No threat indicators or minimap (section 8.4).
 27. **Menus pause:** C, Tab, and Esc pause the game; build mode does not (section 8.3).
 
@@ -975,6 +996,9 @@ Record every balance change here so intent is not lost.
 **Confirmed (v0.20):**
 41. **Collector link:** a Collector shows its link for the whole 3–5 s duration, then takes the corpse (section 10.2.1).
 42. **Sound:** synthesized placeholder effects ship in M10 rather than a silent stub; recorded sounds can replace them later behind the same backend.
+
+**Confirmed (v0.22):**
+43. **Resource roles:** Soul Shards are the common magic resource that pays for Totems, the Altar, and most gear; Ichor is the rare one from large corpses, for Marsh and top-tier gear. Elites give a bonus Soul Shard (section 9.1, revised in v0.23).
 
 **Open:** none right now.
 

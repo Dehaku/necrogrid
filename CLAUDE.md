@@ -11,7 +11,7 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 ## Current status
 
 - Milestone: **M10 done** (sound, particles, screen shake, best score, relative-path build). All milestones in GAME_DESIGN.md section 14 are built; remaining work is playtesting, tuning, and choosing a host (GitHub Pages or itch.io). Update this line when that changes.
-- A human full run at 1× (GAME_DESIGN.md M9 "Done when") is still owed; automated full runs pass but are not a playtest.
+- Human playtests (several full runs) are done; the game plays well. Known low-impact issue: a brief browser-side stutter (33–83 ms frames) right after leaving a pause or menu that lasted a couple of seconds; see the v0.23 tuning-log row. The audio keep-alive did not fix it.
 - Sound, particles, and shake are outputs only: `src/audio/` and `src/render/` listen to run events and must never feed back into the simulation. Re-attach them per run like `Effects`.
 - Player combat numbers come from `Game.stats` (base stats + equipped gear). Pass `stats` into Bolt, Chain, mana regen, and the spell bar; never read `BOLT.damage` etc. directly for gameplay.
 - `new Game(seed, events, { startingBase: false })` skips the free walls and Totem; use it in tests that need open ground around the Phylactery.

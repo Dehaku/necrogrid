@@ -132,7 +132,7 @@ export function spellIcons(player: Player, flesh: number, stats: Stats = baseSta
  * Phylactery panel, top-center: HP bar colored like health bars, with the numbers. On the final day a
  * completion countdown ("1:15" → "0:00") shows under the bar; after completion it reads "Bound".
  */
-export function drawPhylacteryPanel(ctx: CanvasRenderingContext2D, hp: number, maxHp: number, countdown?: number, bound = false): void {
+export function drawPhylacteryPanel(ctx: CanvasRenderingContext2D, hp: number, maxHp: number, bound = false): void {
   const width = 260;
   const left = (VIEW_WIDTH - width) / 2;
   const top = 14;
@@ -150,7 +150,8 @@ export function drawPhylacteryPanel(ctx: CanvasRenderingContext2D, hp: number, m
   ctx.fillRect(left, top + 15, width, 9);
   ctx.fillStyle = healthBarColor(hp / maxHp);
   ctx.fillRect(left, top + 15, width * Math.max(0, hp / maxHp), 9);
-  const note = bound ? 'Bound' : countdown !== undefined ? formatCountdown(countdown) : undefined;
+  // The final-day countdown is drawn on the Phylactery itself (sprites.ts drawPhylacteryLabel).
+  const note = bound ? 'Bound' : undefined;
   if (note) {
     ctx.font = '700 13px system-ui, sans-serif';
     ctx.textAlign = 'center';

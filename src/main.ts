@@ -16,12 +16,14 @@ import { Camera } from './render/camera';
 import { GameCanvas } from './render/canvas';
 import { Effects } from './render/effects';
 import { Lighting } from './render/lighting';
-import { drawBolt, drawBuilding, drawCorpse, drawEnemy, drawEnemyShot, drawPhylactery, drawPlayer, drawTerrain } from './render/sprites';
+import { drawBolt, drawBuilding, drawCorpse, drawEnemy, drawEnemyShot, drawPhylactery, drawPhylacteryLabel, drawPlayer, drawTerrain, phylacteryPulse } from './render/sprites';
+import { PHYLACTERY_PULSE } from './data/fx';
+import { COMPLETION_TIME, FINAL_DAY_START } from './time/dayCycle';
 import { LANTERN, TOTEM, type BuildChoice } from './data/buildings';
 import { footprintAtCursor } from './entities/building';
 import { repairCostToFull } from './economy/repair';
 import { BuildMode, choiceInfo, costText, drawGhost, drawHotbar } from './ui/buildMenu';
-import { drawEdgeArrow, drawPhylacteryPanel, drawRepairPrompt, edgeArrowPosition } from './ui/hud';
+import { drawEdgeArrow, drawPhylacteryPanel, drawRepairPrompt, edgeArrowPosition, formatCountdown } from './ui/hud';
 import { ENEMIES } from './data/enemies';
 import type { ResourceId } from './data/resources';
 import { corpseOpacity, corpsesToDraw } from './entities/corpse';
@@ -39,7 +41,9 @@ import { TitleScreen, type MenuResult } from './ui/titleScreen';
 import { SoundPlayer, WebAudioBackend } from './audio/sound';
 import { Particles } from './render/particles';
 import { ScreenShake } from './render/shake';
+import { Starfall } from './render/starfall';
 import { BestScoreTracker } from './ui/bestScore';
+import { drawKillGallery } from './ui/killGallery';
 
 const canvasElement = document.querySelector<HTMLCanvasElement>('#game');
 if (!canvasElement) throw new Error('Missing #game canvas');
@@ -57,6 +61,7 @@ const resourceHud = new ResourceHud();
 const warnings = new Warnings();
 const particles = new Particles();
 const shake = new ScreenShake();
+const starfall = new Starfall();
 const audioBackend = new WebAudioBackend();
 const sound = new SoundPlayer(
   audioBackend,
@@ -138,6 +143,7 @@ const debugPanel = debugEnabled
       restartWithSeed: (seed) => startRun(seed),
       grant: (id, amount) => game?.gain({ [id]: amount }),
       unlockAllGear: () => game?.unlockAllGear(),
+      playSound: (id) => sound.play(id, undefined, true),
       entityCounts: () =>
         game ? { chunks: game.map.chunkCount, enemies: game.enemies.length, bolts: game.projectiles.length, ...game.enemyCounts() } : {},
       extraReadout: () =>
@@ -168,6 +174,7 @@ function startRun(seed: number = newRunSeed(location.search)): void {
   resourceHud.attach(events);
   warnings.attach(events);
   particles.attach(events);
+  starfall.clear();
   shake.attach(events, onScreen);
   sound.attach(events);
   events.on('run:won', (summary) => {
@@ -217,7 +224,7 @@ function openTitle(): void {
 function openPauseScreen(): void {
   titleScreen.open('pause', performance.now());
   pause.pause('menu');
-  input.clearAll();
+  input.clearPresses();
 }
 
 function applyMenuResult(result: MenuResult | undefined): void {
@@ -306,13 +313,13 @@ input.interceptPress = (press) => {
   if (press.key !== undefined && keys.equipment.has(press.key) && runActive()) {
     equipmentScreen.open();
     pause.pause('menu');
-    input.clearAll();
+    input.clearPresses();
     return true;
   }
   if (press.key !== undefined && keys.craft.has(press.key) && runActive()) {
     craftMenu.open();
     pause.pause('menu');
-    input.clearAll();
+    input.clearPresses();
     return true;
   }
   // Build mode (section 8.4 / 10.2): B toggles, 1–8 pick, RMB removes the building under the cursor.
@@ -406,6 +413,7 @@ function tick(dt: number): void {
   effects.advance(dt);
   particles.advance(dt);
   shake.advance(dt);
+  starfall.advance(dt, game.completed, game.cycle.nightBlend, game.viewCenter());
   resourceHud.advance(dt);
   warnings.update(dt, { cycle: game.cycle.state, phylacteryHp: game.phylactery.hp, phylacteryMaxHp: game.phylactery.maxHp });
   input.endTick();
@@ -444,7 +452,8 @@ function drawRun(run: Game): void {
   const time = run.cycle.elapsed;
 
   drawTerrain(ctx, camera, run.map);
-  drawPhylactery(ctx, camera, run.phylactery.footprint);
+  const pulse = phylacteryPulse(time, FINAL_DAY_START, COMPLETION_TIME, run.completed);
+  drawPhylactery(ctx, camera, run.phylactery.footprint, pulse);
   // Only the newest N corpses are drawn (Settings → Corpse render count). Older ones still exist.
   for (const c of corpsesToDraw(run.corpses, settingsPanel.settings.corpseRenderCount)) {
     drawCorpse(ctx, camera, ENEMIES[c.enemyType], c.elite, c.x, c.y, c.heading, corpseOpacity(c, time));
@@ -471,11 +480,21 @@ function drawRun(run: Game): void {
 
   const me = camera.worldToScreen(x, y);
   const lights = [{ x: me.x, y: me.y, radius: LIGHTING.playerLightRadius * TILE_SIZE }];
+  const phylacteryCenter = camera.worldToScreen(run.phylactery.center.x, run.phylactery.center.y);
+  lights.push({
+    x: phylacteryCenter.x,
+    y: phylacteryCenter.y,
+    radius: (PHYLACTERY_PULSE.lightRadius + PHYLACTERY_PULSE.lightPulse * pulse) * TILE_SIZE,
+  });
   for (const l of run.lanterns()) {
     const p = camera.worldToScreen(l.x, l.y);
     lights.push({ x: p.x, y: p.y, radius: LANTERN.lightRadius * TILE_SIZE });
   }
   lighting.draw(ctx, run.cycle.nightBlend, lights);
+  // Endless-night reward: drawn over the darkness so the stars glow.
+  starfall.draw(ctx, camera);
+  const countdown = run.completionRemaining();
+  drawPhylacteryLabel(ctx, camera, run.phylactery.footprint, countdown === undefined ? undefined : formatCountdown(countdown));
 
   const settings = debugPanel?.settings;
   if (settings && settings.flowOverlay !== 'off') drawFlowField(ctx, camera, run.fields.field(settings.flowOverlay));
@@ -515,7 +534,7 @@ function drawRun(run: Game): void {
     drawRespawnNotice(ctx, run.respawnTimer);
   }
   drawDayRing(ctx, run.cycle.state, run.completed);
-  drawPhylacteryPanel(ctx, run.phylactery.hp, run.phylactery.maxHp, run.completionRemaining(), run.completed);
+  drawPhylacteryPanel(ctx, run.phylactery.hp, run.phylactery.maxHp, run.completed);
   warnings.draw(ctx);
   const arrow = edgeArrowPosition(camera.worldToScreen(run.phylactery.center.x, run.phylactery.center.y));
   if (arrow) drawEdgeArrow(ctx, arrow, time - lastPhylacteryHit < 2, performance.now());
@@ -544,18 +563,24 @@ function render(now: number): void {
   if (titleScreen.isOpen) {
     titleScreen.hover(input.mouse);
     titleScreen.draw(ctx, now, game?.seed);
+    if (game && titleScreen.mode === 'pause' && titleScreen.view === 'menu') drawKillGallery(ctx, game.killsByType, input.mouse, now / 1000);
   }
   if (pause.has('auto') && !menusOpen()) drawAutoPauseOverlay(ctx);
   screen.endFrame();
 }
 
 let lastTime = performance.now();
+let wasPaused = true;
 function frame(now: number): void {
   const elapsed = (now - lastTime) / 1000;
   lastTime = now;
-  if (!pause.isPaused) loop.advance(elapsed, tick);
+  const paused = pause.isPaused;
+  if (wasPaused && !paused) debugPanel?.markResume(now);
+  wasPaused = paused;
+  const ticks = paused ? 0 : loop.advance(elapsed, tick);
+  const tickEnd = performance.now();
   render(now);
-  debugPanel?.recordFrame(now);
+  debugPanel?.recordFrame(now, { frameMs: elapsed * 1000, ticks, tickMs: tickEnd - now, renderMs: performance.now() - tickEnd });
   requestAnimationFrame(frame);
 }
 

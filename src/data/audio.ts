@@ -45,12 +45,12 @@ export interface SoundDef {
 }
 
 export const SOUNDS: Readonly<Record<SoundId, SoundDef>> = {
-  bolt: { wave: 'triangle', freq: 880, freqEnd: 440, duration: 0.08, gain: 0.12, minInterval: 0.05, positional: false },
-  totem: { wave: 'triangle', freq: 1100, freqEnd: 700, duration: 0.06, gain: 0.06, minInterval: 0.12, positional: true },
-  chain: { wave: 'sawtooth', freq: 1400, freqEnd: 300, duration: 0.22, gain: 0.12, minInterval: 0.1, positional: false },
-  hit: { wave: 'noise', freq: 2400, freqEnd: 900, duration: 0.05, gain: 0.08, minInterval: 0.04, positional: true },
+  bolt: { wave: 'triangle', freq: 660, freqEnd: 330, duration: 0.08, gain: 0.11, minInterval: 0.05, positional: false },
+  totem: { wave: 'triangle', freq: 800, freqEnd: 560, duration: 0.06, gain: 0.06, minInterval: 0.12, positional: true },
+  chain: { wave: 'triangle', freq: 900, freqEnd: 250, duration: 0.22, gain: 0.13, minInterval: 0.1, positional: false },
+  hit: { wave: 'noise', freq: 1300, freqEnd: 500, duration: 0.05, gain: 0.06, minInterval: 0.04, positional: true },
   enemyDeath: { wave: 'noise', freq: 1200, freqEnd: 200, duration: 0.18, gain: 0.14, minInterval: 0.06, positional: true },
-  eliteDeath: { wave: 'square', freq: 330, freqEnd: 110, duration: 0.35, gain: 0.14, minInterval: 0.2, positional: true },
+  eliteDeath: { wave: 'triangle', freq: 330, freqEnd: 110, duration: 0.35, gain: 0.14, minInterval: 0.2, positional: true },
   playerHurt: { wave: 'square', freq: 180, freqEnd: 90, duration: 0.14, gain: 0.16, minInterval: 0.15, positional: false },
   phylacteryHit: { wave: 'sine', freq: 140, freqEnd: 70, duration: 0.25, gain: 0.18, minInterval: 0.6, positional: false },
   harvest: { wave: 'sine', freq: 520, freqEnd: 780, duration: 0.12, gain: 0.1, minInterval: 0.08, positional: false },
@@ -63,7 +63,7 @@ export const SOUNDS: Readonly<Record<SoundId, SoundDef>> = {
   craft: { wave: 'triangle', freq: 523, freqEnd: 523, duration: 0.1, gain: 0.12, minInterval: 0.3, notes: [1, 1.26, 1.5], positional: false },
   warning: { wave: 'triangle', freq: 392, freqEnd: 392, duration: 0.16, gain: 0.12, minInterval: 1, notes: [1, 0.84], positional: false },
   win: { wave: 'triangle', freq: 392, freqEnd: 392, duration: 0.22, gain: 0.16, minInterval: 2, notes: [1, 1.26, 1.5, 2], positional: false },
-  lose: { wave: 'sawtooth', freq: 220, freqEnd: 200, duration: 0.3, gain: 0.14, minInterval: 2, notes: [1, 0.94, 0.84, 0.67], positional: false },
+  lose: { wave: 'triangle', freq: 220, freqEnd: 200, duration: 0.3, gain: 0.14, minInterval: 2, notes: [1, 0.94, 0.84, 0.67], positional: false },
   respawn: { wave: 'sine', freq: 260, freqEnd: 520, duration: 0.5, gain: 0.14, minInterval: 1, positional: false },
 };
 
@@ -72,4 +72,10 @@ export const AUDIO = {
   falloffTiles: 30,
   /** Most sounds playing at once; extra ones are skipped. */
   maxVoices: 24,
+  /**
+   * Amplitude of the inaudible keep-alive signal (about −100 dB). Browsers put a silent audio
+   * output to sleep after a few seconds; waking it when sound resumes (after a pause or menu)
+   * can stall frames. A constant whisper of noise keeps the output awake.
+   */
+  keepAliveLevel: 1e-5,
 } as const;

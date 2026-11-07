@@ -108,3 +108,9 @@ export class DayCycle {
     }
   }
 }
+
+/** Run time when the final day begins. */
+export const FINAL_DAY_START = (DAY_CYCLE.winDay - 1) * CYCLE_LENGTH;
+
+/** Run time when the Phylactery completes: the end of the final day's day phase (section 10.4). */
+export const COMPLETION_TIME = (DAY_CYCLE.winDay - 1) * CYCLE_LENGTH + DAY_CYCLE.phases[0].length;

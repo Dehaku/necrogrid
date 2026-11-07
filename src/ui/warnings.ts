@@ -6,6 +6,8 @@
 import { WARNINGS } from '../data/ui';
 import { VIEW_WIDTH } from '../data/tuning';
 import { DAY_CYCLE } from '../data/time';
+import { ENEMIES } from '../data/enemies';
+import { SPAWN } from '../data/spawn';
 import type { EventBus, GameEvents } from '../core/events';
 import type { CycleState } from '../time/dayCycle';
 
@@ -18,6 +20,15 @@ export interface WarningInputs {
   cycle: CycleState;
   phylacteryHp: number;
   phylacteryMaxHp: number;
+}
+
+/** "Day 3. Brutes have entered the battlefield": one line per enemy type first spawning on `day`. */
+export function arrivalBanners(day: number): string[] {
+  if (day <= 1) return [];
+  return SPAWN.activeRoster.flatMap((t) => {
+    const def = ENEMIES[t];
+    return def.minDay === day && def.arrival ? [`Day ${day}. ${def.arrival}`] : [];
+  });
 }
 
 export class Warnings {
@@ -43,6 +54,7 @@ export class Warnings {
         this.show(WARNINGS.text.underAttack);
       }),
       events.on('phase:day', ({ day }) => {
+        for (const text of arrivalBanners(day)) this.show(text);
         if (day === DAY_CYCLE.winDay) this.show(WARNINGS.text.finalDay);
       }),
       events.on('run:won', () => this.show(WARNINGS.text.complete)),

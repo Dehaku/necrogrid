@@ -138,6 +138,8 @@ export class Game {
   readonly corpses: Corpse[] = [];
   harvest: HarvestState | undefined;
   kills = 0;
+  /** Kills this run by enemy type (the pause screen's kill gallery). */
+  readonly killsByType: Record<EnemyId, number> = { imp: 0, shambler: 0, brute: 0, wraith: 0, hellhound: 0 };
   /** Buildings destroyed by demons, for the score. */
   buildingsLost = 0;
   /** Corpses harvested (by hand; Collectors from M7 count too), for the end screen. */
@@ -676,6 +678,7 @@ export class Game {
     if (enemy.hp > 0) return;
     enemy.alive = false;
     this.kills++;
+    this.killsByType[enemy.type]++;
     this.events.emit('enemy:died', { id: enemy.id, type: enemy.type, elite: enemy.elite, x: enemy.x, y: enemy.y });
     this.spawnCorpse(enemy);
   }
