@@ -10,23 +10,23 @@ Top-down browser survival game: a necromancer defends a Phylactery against demon
 
 ## Current status
 
-- Milestone: **M0 not started.** Update this line when a milestone is finished.
+- Milestone: **M0 done** (skeleton: loop, input, auto-pause, letterboxed canvas). Next: M1. Update this line when a milestone is finished.
 
 ## Commands
 
-Set up during M0; keep this list accurate once they exist.
-
 - `npm install`: install dependencies
-- `npm run dev`: start the Vite dev server
+- `npm run dev`: start the Vite dev server (http://localhost:5173)
 - `npm test`: run Vitest once
-- `npm run build`: type-check and build for production
+- `npm run build`: type-check (`tsc`) and build for production
 
 ## Rules
 
 - TypeScript + Vite + Canvas 2D. No game engine, no runtime dependencies beyond what M0 sets up.
 - **Data over code:** every tunable number lives in `src/data/`. Files there hold data only. Logic that uses them has a different filename elsewhere.
 - **Deterministic simulation:** all randomness goes through the seeded RNG in `src/core/rng.ts`. Never use `Math.random`. The one exception is picking a new run's seed with `crypto.getRandomValues` (GAME_DESIGN.md section 8.5).
-- **Fixed timestep:** logic runs in 1/60 s steps. Only `src/render/` touches the canvas.
+- **Fixed timestep:** logic runs in 1/60 s steps. Only `src/render/` and `src/ui/` draw; simulation code never touches the canvas.
+- **World units are tiles.** Tile (x, y) covers [x, x + 1) × [y, y + 1). Speeds in the doc are px/s; divide by `TILE_SIZE`.
+- **Controls come from `src/data/controls.ts`.** Never hard-code a key code elsewhere.
 - Systems talk through the event bus in `src/core/events.ts`, not by importing each other's internals.
 - Add or update unit tests in `tests/` for the math the doc calls out (chain falloff, stat modifiers, repair cost, spawn rates, map generation, targeting, flow fields).
 - When a balance value changes, record it in GAME_DESIGN.md section 16.
@@ -34,5 +34,5 @@ Set up during M0; keep this list accurate once they exist.
 ## Workflow
 
 - Run `npm test` and `npm run build` before calling a milestone done.
-- Check the milestone in the browser with `?debug` and the debug panel (GAME_DESIGN.md section 13).
+- Check the milestone in the browser with `?debug` and the debug panel (GAME_DESIGN.md section 13). With `?debug`, `window.necrogrid` exposes internals for console checks.
 - Commit at the end of each milestone.
